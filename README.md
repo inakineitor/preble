@@ -1,7 +1,7 @@
 # Preble
 
 Preble is a load balancer for effecient prefix caching systems. 
-PrePrint release at https://escholarship.org/uc/item/1bm0k1w0#metrics
+PrePrint release at https://arxiv.org/abs/2407.00023
 ## Installation
 
 You can install the package using pip:
