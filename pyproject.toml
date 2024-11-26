@@ -20,7 +20,8 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-flashinfer = { index = "pytorch" }
+preble = { path = "preble" }
+flashinfer = { index = "flashinfer" }
 
 [[tool.uv.index]]
 name = "flashinfer"
