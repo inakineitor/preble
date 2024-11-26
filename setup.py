@@ -1,17 +1,20 @@
 from setuptools import setup, find_packages
 import os
 
+
 def read_requirements(filename):
-    with open(filename, 'r') as f:
+    with open(filename, "r") as f:
         return f.read().splitlines()
+
 
 def read_readme():
     with open("README.md", "r", encoding="utf-8") as fh:
         return fh.read()
 
+
 setup(
     name="preble",
-    version="0.1.01",
+    version="0.1.1",
     author="Vikranth Srivatsa",
     author_email="vsrivatsa@ucsd.edu",
     description="load balancer",
@@ -21,24 +24,28 @@ setup(
     packages=find_packages(include=["preble", "preble.*"]),
     include_package_data=True,
     package_data={
-        '': ['assets/*.jpg', 'docs/*.md'],
+        "": ["assets/*.jpg", "docs/*.md"],
     },
     install_requires=[
-        'scipy',
-        'matplotlib',
-        'datasets',
-        'paramiko',
-        'fire',
+        "torch==2.4.1",
+        "scipy",
+        "matplotlib",
+        "datasets",
+        "paramiko",
+        "gurobipy",
+        "pydantic",
+        "anyio",
+        "fire",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    python_requires='>=3.6',
+    python_requires=">=3.6",
     entry_points={
-        'console_scripts': [
-            'preble=preble.server.server:main',
+        "console_scripts": [
+            "preble=preble.server.server:main",
         ],
     },
 )

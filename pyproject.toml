@@ -18,17 +18,19 @@ dependencies = [
     "setuptools>=75.6.0",
     "transformers>=4.46.3",
     "uvicorn>=0.32.1",
+    "cuda-python",
+    "nvidia-cuda-nvrtc-cu12",
     "sglang[all]",
-    "flashinfer"
+    # "flashinfer"
 ]
 
 [tool.uv.sources]
 preble = { path = "preble" }
-flashinfer = { index = "flashinfer" }
+# flashinfer = { index = "flashinfer" }
 
-[[tool.uv.index]]
-name = "flashinfer"
-url = "https://flashinfer.ai/whl/cu121/torch2.4/"
+# [[tool.uv.index]]
+# name = "flashinfer"
+# url = "https://flashinfer.ai/whl/cu121/torch2.4/"
 
 [project.scripts]
 preble-server = "preble.server.server:main"
