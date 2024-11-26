@@ -1,0 +1,15 @@
+[project]
+name = "preble"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "datasets>=3.1.0",
+    "fire>=0.7.0",
+    "gurobipy>=12.0.0",
+    "matplotlib>=3.9.2",
+    "paramiko>=3.5.0",
+    "scipy>=1.13.1",
+    "setuptools>=75.6.0",
+]
