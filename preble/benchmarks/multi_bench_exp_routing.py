@@ -214,13 +214,15 @@ def run_all_experiments(all_experiments: AllExperiments):
 
 if __name__ == "__main__":
 
-    # TODO: Ensure proper config when testing with 4 GPUs
+    # TODO: Run tests on 4 GPUs
     from benchmarks.multi_exp_configs.e2e_loogle_config import (
         exp_args,
     )  # NOTE: This one works with any number of GPUs
 
-    # TODO: Ensure proper config when testing with 4 GPUs
-    # from benchmarks.multi_exp_configs.e2e_programming import exp_args  # FIX: This dataset requires 2 or more GPUs to work.
+    # TODO: Run tests on 4 GPUs
+    # from benchmarks.multi_exp_configs.e2e_programming import (
+    #     exp_args,
+    # )  # FIX: This dataset requires 2 or more GPUs to work.
 
     # from benchmarks.multi_exp_configs.e2e_videoQA_config import (
     #     exp_args,
