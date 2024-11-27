@@ -99,6 +99,7 @@
 
    1. `cd preble`
    1. `source setup_project.sh`
+   1. Installing on FASRC: Make sure you've loaded `gcc/13.2.0-fasrc01` and `cuda/12.4.1-fasrc01`. Then, follow `setup_project.sh` -- before installing `flashinfer`, reinstall pytorch 2.4 through pip (this might not be necessary). 
 
 1. Ensure that everything is set up correctly by running `python preble/server/server.py run`. Nothing should happen but the command should not fail.
 
