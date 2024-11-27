@@ -4,113 +4,99 @@
 
 ### Hardware
 
-#### 1. Navigate to the EC2 Dashboard
+1. Navigate to the EC2 Dashboard
 
-- **Log in** to your AWS Management Console.
-- From the **Services** menu, select **EC2** under the "Compute" category.
+   - **Log in** to your AWS Management Console.
+   - From the **Services** menu, select **EC2** under the "Compute" category.
 
----
+1. Launch a New Instance
 
-#### 2. Launch a New Instance
+   - Click on the **Launch Instances** button on the EC2 dashboard.
 
-- Click on the **Launch Instances** button on the EC2 dashboard.
+1. Configure Basic Instance Details
 
----
+   1. Name and Tags
 
-#### 3. Configure Basic Instance Details
+      - In the **Name and tags** section:
+        - Click **Add Tag**.
+        - Set **Key** to `Name` and **Value** to `preble-dev`.
 
-##### 3.1. Name and Tags
+   1. Application and OS Images (Amazon Machine Image)
 
-- In the **Name and tags** section:
-  - Click **Add Tag**.
-  - Set **Key** to `Name` and **Value** to `preble-dev`.
+      - Under **Application and OS Images (Amazon Machine Image)**:
+      - Click on **Browse more AMIs**.
+      - In the search bar, enter the **AMI ID**: `ami-015c62e8068dd8f78`.
+      - Select the AMI that matches this ID.
 
-##### 3.2. Application and OS Images (Amazon Machine Image)
+   1. Instance Type
 
-- Under **Application and OS Images (Amazon Machine Image)**:
-  - Click on **Browse more AMIs**.
-  - In the search bar, enter the **AMI ID**: `ami-015c62e8068dd8f78`.
-  - Select the AMI that matches this ID.
+      - In the **Instance type** section:
+      - Select **g4dn.xlarge** from the dropdown menu.
 
-##### 3.3. Instance Type
+   1. Key Pair (Login)
 
-- In the **Instance type** section:
-  - Select **g4dn.xlarge** from the dropdown menu.
+      - Under **Key pair (login)**:
+      - Choose an existing key pair or create a new one for SSH access.
 
-##### 3.4. Key Pair (Login)
+1. Configure Network Settings
 
-- Under **Key pair (login)**:
-  - Choose an existing key pair or create a new one for SSH access.
+   - Expand the **Network settings** section.
 
----
+   1. VPC and Subnet
 
-#### 4. Configure Network Settings
+      - **VPC**: Leave the default VPC selected.
+      - **Subnet**: Leave the default subnet selected.
 
-- Expand the **Network settings** section.
+   1. Auto-assign Public IP
 
-##### 4.1. VPC and Subnet
+      - Ensure **Auto-assign public IPv4 address** is **Enabled**.
 
-- **VPC**: Leave the default VPC selected.
-- **Subnet**: Leave the default subnet selected.
+   1. Firewall (Security Groups)
 
-##### 4.2. Auto-assign Public IP
+      - Under **Firewall (security groups)**:
+        - Select **Create security group**.
+        - Ensure that the security group contains an **All traffic** rule.
 
-- Ensure **Auto-assign public IPv4 address** is **Enabled**.
+1. Configure Storage
 
-##### 4.3. Firewall (Security Groups)
+   - In the **Configure storage** section:
+   - For the root volume `/dev/sda1`:
+     - **Size (GiB)**: Set to `250`.
+     - **Volume Type**: Select **General Purpose SSD (gp3)**.
 
-- Under **Firewall (security groups)**:
-  - Select **Create security group**.
-  - Ensure that the security group contains an **All traffic** rule.
+1. Review and Launch
 
----
+   - **Review** all configurations to ensure they match the settings above.
+   - Click on **Launch Instance** at the bottom of the page.
 
-#### 5. Configure Storage
+1. Verify Your Instance
 
-- In the **Configure storage** section:
-  - For the root volume `/dev/sda1`:
-    - **Size (GiB)**: Set to `250`.
-    - **Volume Type**: Select **General Purpose SSD (gp3)**.
-
----
-
-##### 7. Review and Launch
-
-- **Review** all configurations to ensure they match the settings above.
-- Click on **Launch Instance** at the bottom of the page.
-
----
-
-##### 8. Verify Your Instance
-
-- Navigate back to the **EC2 dashboard**.
-- Click on **Instances** in the sidebar.
-- Confirm that your instance named `preble-dev` is running and has the correct configurations.
-
----
+   - Navigate back to the **EC2 dashboard**.
+   - Click on **Instances** in the sidebar.
+   - Confirm that your instance named `preble-dev` is running and has the correct configurations.
 
 ### Software
 
-#### 1. Install Miniconda
+1. Install Miniconda
 
-Install Miniconda by running the following commands:
+   Install Miniconda by running the following commands:
 
-```bash
-curl -O https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-bash ~/Miniconda3-latest-Linux-x86_64.sh
-source ~/.bashrc
-```
+   ```bash
+   curl -O https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+   bash ~/Miniconda3-latest-Linux-x86_64.sh
+   source ~/.bashrc
+   ```
 
-#### 2. Cloning the repository
+1. Cloning the repository
 
-Clone the current repository by running `git clone https://github.com/inakineitor/preble.git`.
+   Clone the current repository by running `git clone https://github.com/inakineitor/preble.git`.
 
-#### 3. Set up the Conda environment
+1. Set up the Conda environment
 
-Set up the Conda environment and python packages by running:
+   Set up the Conda environment and python packages by running:
 
-1. `cd preble`
-1. `source setup_project.sh`
+   1. `cd preble`
+   1. `source setup_project.sh`
 
 # Old Preble Content
 
@@ -128,17 +114,21 @@ The `multi_node` directory contains the code for running as a separate abstracti
 Editable Installation
 
 ```
+
 pip3 install -e .
 pip install -e "python[all]"
 pip install flashinfer -i https://flashinfer.ai/whl/cu121/torch2.3/
+
 ```
 
 Regular Pip Installation:
 
 ```
+
 pip3 install preble
 pip install git+https://github.com/wuklab/preble.git#egg=preble[all]
 pip install flashinfer -i https://flashinfer.ai/whl/cu121/torch2.3/
+
 ```
 
 We release a custom version of sglang that supports chunked prefill
@@ -148,34 +138,40 @@ We release a custom version of sglang that supports chunked prefill
 We can support providing a list of runtime urls
 
 ```
+
 from preble.main import start_server
 
 start_server(
-    runtime_selection_policy="custom",
-    runtime_urls="http://127.0.0.1:30000/generate,http://127.0.0.1:30001/generate",
-    host='127.0.0.1',
-    port=8000,
-    model="mistralai/Mistral-7B-v0.1"
+runtime_selection_policy="custom",
+runtime_urls="http://127.0.0.1:30000/generate,http://127.0.0.1:30001/generate",
+host='127.0.0.1',
+port=8000,
+model="mistralai/Mistral-7B-v0.1"
 )
+
 ```
 
 We can also support dynamically loading the models to seperate cuda devices
 
 ```
+
 from preble.main import start_server_and_load_models
 
 start_server_and_load_models(
-    model_name="mistralai/Mistral-7B-v0.1",
-    devices=[0, 1],
-    host="127.0.0.1",
-    port=8000
+model_name="mistralai/Mistral-7B-v0.1",
+devices=[0, 1],
+host="127.0.0.1",
+port=8000
 )
+
 ```
 
 The server can be run via:
 
 ```
+
 python3 multi_node/server/server.py <server/deploy_and_run>
+
 ```
 
 - server runs the server given a list of urls
@@ -184,11 +180,13 @@ python3 multi_node/server/server.py <server/deploy_and_run>
 CLI Configuration
 
 ```
+
     runtime_selection_policy: The policy to select the runtime (e.g., custom, round_robin).
     runtime_urls: Comma-separated list of runtime URLs.
     host: The host address for the server.
     port: The port number for the server.
     model: The model to be used (e.g., mistralai/Mistral-7B-v0.1).
+
 ```
 
 ## Citation And Acknowledgment
@@ -205,3 +203,7 @@ Currently uploaded at:
 License
 
 This project is licensed under the Apache 2.0 License. See the LICENSE file for details.
+
+```
+
+```
