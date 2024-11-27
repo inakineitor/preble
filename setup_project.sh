@@ -20,6 +20,10 @@ if (($? == 0)); then
 	pip install flashinfer -i https://flashinfer.ai/whl/cu124/torch2.4/
 	echo "FlashInfer installed"
 
+	echo "Installing rich"
+	pip install rich
+	echo "Rich installed"
+
 	conda deactivate
 fi
 
