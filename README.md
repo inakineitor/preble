@@ -77,6 +77,8 @@
 
 ### Software
 
+#### Setup environment
+
 1. Install Miniconda
 
    Install Miniconda by running the following commands:
@@ -97,6 +99,12 @@
 
    1. `cd preble`
    1. `source setup_project.sh`
+
+1. Ensure that everything is set up correctly by running `python preble/server/server.py run`. Nothing should happen but the command should not fail.
+
+#### Generate benchmark workload files
+
+1.
 
 # Old Preble Content
 

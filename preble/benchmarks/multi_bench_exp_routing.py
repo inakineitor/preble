@@ -213,27 +213,45 @@ def run_all_experiments(all_experiments: AllExperiments):
 
 
 if __name__ == "__main__":
-    # from multi_node.benchmarks.multi_exp_configs.e2e_4r_toolbench_config import toolbench_experiment as tb_4r_config
-    # from multi_node.benchmarks.multi_exp_configs.e2e_2r_toolbench_config import toolbench_experiment as tb_2r_config
+
+    # TODO: Ensure proper config when testing with 4 GPUs
+    from benchmarks.multi_exp_configs.e2e_loogle_config import (
+        exp_args,
+    )  # NOTE: This one works with any number of GPUs
+
+    # TODO: Ensure proper config when testing with 4 GPUs
+    # from benchmarks.multi_exp_configs.e2e_programming import exp_args  # FIX: This dataset requires 2 or more GPUs to work.
+
+    # from benchmarks.multi_exp_configs.e2e_videoQA_config import (
+    #     exp_args,
+    # )  # FIX: This datset rquires a `VideoQA.csv` file
+
+    # from benchmarks.multi_exp_configs.e2e_mix_config import exp_args # FIX: This dataset requires an original file from ToolBench that has been pre-processed
+    # from benchmarks.multi_exp_configs.e2e_toolbench_config import exp_args # FIX: This dataset requires an original file from ToolBench that has been pre-processed
+
+    # NOTE: The virtualenv experiment relies on Azure LLM traces
+    # These can be found [here](https://github.com/Azure/AzurePublicDataset/blob/master/AzureLLMInferenceDataset2023.md)
+    #
+    # from benchmarks.multi_exp_configs.e2e_virtualenv_config import (
+    #     exp_args,
+    # )  # FIX: This datset rquires an results_trace_updated_v2.json file
+
+    # NOTE: The following configs specify different GPU sizes but use the same datasets
+    #
+    # from benchmarks.multi_exp_configs.e2e_4r_toolbench_config import toolbench_experiment as tb_4r_config
+    # from benchmarks.multi_exp_configs.e2e_2r_toolbench_config import toolbench_experiment as tb_2r_config
     # exp_args = AllExperiments([tb_2r_config, tb_4r_config])
-
-    # from multi_node.benchmarks.multi_exp_configs.e2e_2r_loogle_config import loogle_experiment as lg_2r_config
-    # from multi_node.benchmarks.multi_exp_configs.e2e_4r_loogle_config import loogle_experiment as lg_4r_config
+    #
+    # from benchmarks.multi_exp_configs.e2e_2r_loogle_config import loogle_experiment as lg_2r_config
+    # from benchmarks.multi_exp_configs.e2e_4r_loogle_config import loogle_experiment as lg_4r_config
     # exp_args = AllExperiments([lg_2r_config, lg_4r_config])
-
-    # from multi_node.benchmarks.multi_exp_configs.e2e_videoQA_config import videoQA_experiment as vqa_2r_config
-    # from multi_node.benchmarks.multi_exp_configs.e2e_4r_videoQA_config import videoQA_experiment as vqa_4r_config
+    #
+    # from benchmarks.multi_exp_configs.e2e_videoQA_config import videoQA_experiment as vqa_2r_config
+    # from benchmarks.multi_exp_configs.e2e_4r_videoQA_config import videoQA_experiment as vqa_4r_config
     # exp_args = AllExperiments([vqa_2r_config, vqa_4r_config])
 
-    # from benchmarks.multi_exp_configs.e2e_loogle_config import exp_args
-    # from benchmarks.multi_exp_configs.e2e_programming import exp_args
-    #     from benchmarks.multi_exp_configs.e2e_programming import exp_args
-    #     from benchmarks.multi_exp_configs.e2e_loogle_config import exp_args
-    from benchmarks.multi_exp_configs.e2e_mix_config import exp_args
-
-    # from benchmarks.multi_exp_configs.e2e_videoQA_config import exp_args
-    # from benchmarks.multi_exp_configs.e2e_toolbench_config import exp_args
-    # from benchmarks.multi_exp_configs.e2e_virtualenv_config import exp_args
+    # NOTE: The following configs specify different GPU size but use the same datasets
+    #
     # from preble.benchmarks.multi_exp_configs.e2e_234r_toolbench_config import exp_args
     # from preble.benchmarks.multi_exp_configs.e2e_234r_videoQA_config import exp_args
     # from preble.benchmarks.multi_exp_configs.e2e_234r_common_share_micro_config import exp_args
