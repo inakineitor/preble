@@ -112,7 +112,7 @@ Set up the Conda environment and python packages by running:
 1. `cd preble`
 1. `source setup_project.sh`
 
-## Old Preble Content
+# Old Preble Content
 
 Preble is a load balancer for effecient prefix caching systems.
 PrePrint release at https://arxiv.org/abs/2407.00023
