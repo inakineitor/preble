@@ -865,10 +865,10 @@ class LooGLEDataset(DataLoader):
         self, LooGLE_dataset_type: LooGLEDatasetType = LooGLEDatasetType.SHORT_QA
     ):
         if LooGLE_dataset_type == LooGLEDatasetType.LONG_QA:
-            data = load_dataset("bigainlco/LooGLE", "longdep_qa", split="test")
+            data = load_dataset("bigainlco/LooGLE", "longdep_qa", split="test", trust_remote_code=True)
         elif LooGLE_dataset_type == LooGLEDatasetType.SHORT_QA:
             # data = load_dataset("bigainlco/LooGLE", "shortdep_qa", split="test", download_mode='force_redownload')
-            data = load_dataset("bigainlco/LooGLE", "shortdep_qa", split="test")
+            data = load_dataset("bigainlco/LooGLE", "shortdep_qa", split="test", trust_remote_code=True)
         self.data = data
         self.prompt_format = self.prompt_format[LooGLE_dataset_type]
         return data
@@ -1577,7 +1577,7 @@ class ProgrammingDataset(DataLoader):
     def read_data(
         self
     ):
-        ds = load_dataset("codeparrot/apps", split="test", difficulties=["introductory"])
+        ds = load_dataset("codeparrot/apps", split="test", difficulties=["introductory"], trust_remote_code=True)
         self.data = ds
         return self.data
 
