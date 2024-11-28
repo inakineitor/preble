@@ -4,6 +4,9 @@ import argparse
 import dataclasses
 from typing import List, Optional, Union
 
+from rich.console import Console, ConsoleOptions, RenderResult
+from rich.scope import render_scope
+
 
 @dataclasses.dataclass
 class ServerArgs:
@@ -54,10 +57,22 @@ class ServerArgs:
     log_prefix_hit: bool = False
     api_key: str = ""
     chunk_prefill_budget: int = 0
-    hit_trace_window_size: int = 30 # seconds
+    hit_trace_window_size: int = 30  # seconds
     report_hit_ratio: bool = True
     enable_iterative_eviction: bool = False
     enable_partial_eviction: bool = False
+
+    def __rich_console__(
+        self, console: Console, options: ConsoleOptions
+    ) -> RenderResult:
+        exclude_keys = {"additional_ports"}
+        unfiltered_attributes = dataclasses.asdict(self)
+        filtered_attributes = {
+            x: unfiltered_attributes[x]
+            for x in unfiltered_attributes
+            if x not in exclude_keys
+        }
+        yield render_scope(filtered_attributes, title=self.__class__.__name__)
 
     def __post_init__(self):
         if self.tokenizer_path is None:
@@ -268,32 +283,32 @@ class ServerArgs:
             help="Whether the server should log prefix hit",
         )
         parser.add_argument(
-            '--chunk-prefill-budget',
+            "--chunk-prefill-budget",
             type=int,
             default=ServerArgs.chunk_prefill_budget,
-            help='The maximum number of tokens that can be scheduled in a single iteration '
-                 'Set to 0 to disable chunking.',
+            help="The maximum number of tokens that can be scheduled in a single iteration "
+            "Set to 0 to disable chunking.",
         )
         parser.add_argument(
-            '--hit-trace-window-size',
+            "--hit-trace-window-size",
             type=int,
             default=ServerArgs.hit_trace_window_size,
-            help='The size of the window for hit trace in seconds.',
+            help="The size of the window for hit trace in seconds.",
         )
         parser.add_argument(
-            '--report-hit-ratio',
-            action='store_true',
-            help='Whether to return hit ratio. If disabled will always return 0, which disables hot/cold mixed scheduling.',
+            "--report-hit-ratio",
+            action="store_true",
+            help="Whether to return hit ratio. If disabled will always return 0, which disables hot/cold mixed scheduling.",
         )
         parser.add_argument(
-            '--enable-iterative-eviction',
-            action='store_true',
-            help='Enable iterative eviction feedback.',
+            "--enable-iterative-eviction",
+            action="store_true",
+            help="Enable iterative eviction feedback.",
         )
         parser.add_argument(
-            '--enable-partial-eviction',
-            action='store_true',
-            help='Enable partial eviction feedback.',
+            "--enable-partial-eviction",
+            action="store_true",
+            help="Enable partial eviction feedback.",
         )
 
     @classmethod

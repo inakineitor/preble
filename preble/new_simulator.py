@@ -47,13 +47,18 @@ from sglang.srt.managers.router.infer_batch import Batch
 from benchmarks.benchmark_workload_gen import WorkloadPrefixDataLoader
 from benchmarks.benchmark_utils import RequestFuncOutput, BenchmarkMetrics
 from benchmarks.exp_configs.model_equations import (
+    mistral_7b_A100_sglang_extend_flashinfer,
     mistral_7b_A6000_sglang_extend_flashinfer,
     mistrial_7b_A6000_sglang_decode_flashinfer,
 )
 
-from rich.console import Console
+from rich.console import Console, ConsoleOptions, RenderResult
+from rich.table import Table
 from rich.logging import RichHandler
+from rich.syntax import Syntax
+from rich.scope import render_scope
 
+console = Console()
 
 logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
@@ -61,6 +66,12 @@ logging.getLogger("filelock").setLevel(logging.WARNING)
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
 logging.getLogger("paramiko").setLevel(logging.WARNING)
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(message)s",
+    datefmt="[%X]",
+    handlers=[RichHandler(console=console, rich_tracebacks=True)],
+)  # NOTE: Change from INFO to DEBUG to see all info
 logger = logging.getLogger(__name__)
 
 
@@ -147,7 +158,6 @@ class ServerRuntimeSimulator:
     ):
         self.server_args = server_args
         self.url = random_uuid_string()
-        logger.info(server_args)
 
         port_args = PortArgs(
             tokenizer_port=server_args.additional_ports[0],
@@ -603,43 +613,76 @@ class ModelStepEvent(SimulationEvent):
         simulator.add_event(ModelStepEvent(runtime.manager_clock, self.runtime_id))
 
 
+def create_gpu(
+    id: int,
+    server_args: ServerArgs,
+    forward_simulation_extend,
+    forward_simulation_decode,
+    kv_cache_memory,
+):
+    gpu_config = GPUConfig(gpu_id=id, url=None, use_ssh=False, runtime_args=server_args)
+    gpu_config.regist_simulator_config(
+        forward_simulation=[forward_simulation_extend, forward_simulation_decode],
+        kv_cache_memory=kv_cache_memory,
+        lp_forward_simulation=None,
+    )
+    return gpu_config
+
+
 if __name__ == "__main__":
-    console = Console()
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(message)s",
-        datefmt="[%X]",
-        handlers=[RichHandler()],
-    )  # NOTE: Change from INFO to DEBUG to see all info
 
     # Set random seeds
     random.seed(2333)
     np.random.seed(2333)
 
-    # Simulator configurations
+    # ==================== Simulator Parameters ====================
+    REQUESTS_PER_SECOND = 8
+    EXPERIMENT_TIME_SECONDS = 30
+
+    # ==================== Dataloader Parameters ====================
+    NUM_WORKLOADS = 10
+    NUM_IN_CONTEXT_EXAMPLES = 4
+    OUTPUT_LENGTH = 10
+
+    # ==================== Accelerator Parameters ====================
+    NUM_GPUS = 2
+    KV_CACHE_MEMORY = 1 << 30
+    FORWARD_SIMULATION_EXTEND = mistral_7b_A6000_sglang_extend_flashinfer
+    FORWARD_SIMULATION_DECODE = mistrial_7b_A6000_sglang_decode_flashinfer
+    # FORWARD_SIMULATION_EXTEND = mistral_7b_A100_sglang_extend_flashinfer
+    # FORWARD_SIMULATION_DECODE = mistrial_7b_A6000_sglang_decode_flashinfer
+
+    # ==================== Server Parameters ====================
     MODEL_NAME = "mistralai/Mistral-7B-v0.1"
 
+    # ==================== Computed Simulator Parameters ====================
+    num_requests = int(REQUESTS_PER_SECOND * EXPERIMENT_TIME_SECONDS)
     profile_mode, server_args = create_simulator_args(model_path=MODEL_NAME)
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
+    # ==================== Computed Dataloader Parameters ====================
+    dataloader = WorkloadPrefixDataLoader(
+        NUM_WORKLOADS,
+        num_requests,
+        tokenizer,
+        num_in_context_examples=NUM_IN_CONTEXT_EXAMPLES,
+        output_len=OUTPUT_LENGTH,
+    )
+    requests = dataloader.generate_workload(k=1)  # `k` is unused parameter
+
+    # ==================== Computed Accelerator Parameters ====================
     gpu_configs = [
-        GPUConfig(gpu_id=0, url=None, use_ssh=False, runtime_args=server_args),
-        GPUConfig(gpu_id=1, url=None, use_ssh=False, runtime_args=server_args),
+        create_gpu(
+            gpu_id,
+            server_args,
+            FORWARD_SIMULATION_EXTEND,
+            FORWARD_SIMULATION_DECODE,
+            KV_CACHE_MEMORY,
+        )
+        for gpu_id in range(NUM_GPUS)
     ]
 
-    def forward_simulation(batch: Batch):
-        return 1
-
-    for config in gpu_configs:
-        config.regist_simulator_config(
-            forward_simulation=[
-                mistral_7b_A6000_sglang_extend_flashinfer,
-                mistrial_7b_A6000_sglang_decode_flashinfer,
-            ],  # TODO: Adapt
-            # forward_simulation=[forward_simulation, forward_simulation],
-            kv_cache_memory=1 << 30,
-            lp_forward_simulation=None,
-        )
-
+    # ==================== Computed Server Parameters ====================
     runtimes = [
         ServerRuntimeSimulator(
             gpu_config=config,
@@ -648,39 +691,45 @@ if __name__ == "__main__":
         )
         for config in gpu_configs
     ]
-    vocab_size = runtimes[0].model_rpc.model_config.vocab_size
-
+    # vocab_size = runtimes[0].model_rpc.model_config.vocab_size
     router = DataParallelRequestRouter(
-        DataParallelRuntimeSelectionPolicy.RANDOM, total_nodes=2
+        DataParallelRuntimeSelectionPolicy.RANDOM, total_nodes=NUM_GPUS
     )
+
+    console.log(server_args)
+
+    # ==================== Setting Up Simulator ====================
     simulator = Simulation(runtimes, router)
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-    rps, exp_time = 8, 30
-    num_requests = int(rps * exp_time)
-    num_workloads = 10
-    dataloader = WorkloadPrefixDataLoader(
-        num_workloads,
-        num_requests,
-        tokenizer,
-        num_in_context_examples=4,
-        output_len=10,
+    simulator.initialize_all_request_with_rps(
+        requests, REQUESTS_PER_SECOND, EXPERIMENT_TIME_SECONDS
     )
-    requests = dataloader.generate_workload(k=1)
-    simulator.initialize_all_request_with_rps(requests, 8, 30)
     simulator.start_model_forwarding_loop()
 
     results = simulator.run()
+
+    # ==================== Processing Benchmarks ====================
     bench_metrics = BenchmarkMetrics.gen_benchmark_metrics(
         tokenizer=tokenizer,
         req_func_outputs=results,
-        overall_latency=exp_time,
-        time_limit=exp_time,
-        gpu_counts=len(gpu_configs),
+        overall_latency=EXPERIMENT_TIME_SECONDS,
+        time_limit=EXPERIMENT_TIME_SECONDS,
+        gpu_counts=NUM_GPUS,
     )
-    exp_params = (
-        f"{MODEL_NAME}, {num_workloads}, {0}, {num_requests}, {rps}, {exp_time}"
-    )
-    bench_metrics.to_log_file(exp_params)
 
-    console.print("hello")
-    console.print("Hello, [bold magenta]World[/bold magenta]!", ":vampire:")
+    # ==================== Printing Results ====================
+    console.log(
+        render_scope(
+            {
+                "Model Name": MODEL_NAME,
+                "Number of Workloads": NUM_WORKLOADS,
+                "IDK what this is": 0,
+                "Number of Requests": num_requests,
+                "Requests per Second": REQUESTS_PER_SECOND,
+                "Experiment Time": EXPERIMENT_TIME_SECONDS,
+            },
+            title="Experiment Parameters",
+        )
+    )
+    console.log(bench_metrics)
+
+    # bench_metrics.to_log_file(exp_params)

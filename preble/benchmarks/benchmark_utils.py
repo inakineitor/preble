@@ -14,6 +14,9 @@ import numpy as np
 from enum import Enum, auto
 import re
 
+from rich.console import Console, ConsoleOptions, RenderResult
+from rich.scope import render_scope
+
 # Add the parent directory of the 'src' directory to the Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -23,19 +26,23 @@ from benchmarks.benchmark_workload_gen import DataLoader
 
 
 class ExperimentType(Enum):
-    sequential = auto()  # can send the next request only after the previous one is complete
+    sequential = (
+        auto()
+    )  # can send the next request only after the previous one is complete
     advanced_sequential = auto()
     concurrent_grouped = auto()
     increasing_rps = auto()
-    default = auto() # send each one at a fixed rps
+    default = auto()  # send each one at a fixed rps
     autoscaling = auto()
 
     def __eq__(self, other):
         return self.value == other.value
 
+
 @dataclass
 class RequestGroup:
     """A group of requests with a specifc request pattern, like sequential"""
+
     requests: List[Dict]
     request_rate: float
     send_out_times: List[float]
@@ -47,7 +54,9 @@ class WorkloadConfig:
     num_prefix_patterns: int
     random_ratio: float
     num_requests: int
-    request_rate: float  # the global request rate (may not be the req rate within groups)
+    request_rate: (
+        float  # the global request rate (may not be the req rate within groups)
+    )
     request_groups: List[RequestGroup]
     dataloader: DataLoader
     # send_out_times: List[float]
@@ -56,11 +65,12 @@ class WorkloadConfig:
     def __repr__(self) -> str:
         return (
             f"=====STARTING BENCHMARK OF {self.num_prefix_patterns} WORKLOADS, "
-            f'{self.random_ratio} NON-SHARED, '
-            f'{self.num_requests} REQUESTS, '
-            f'{self.request_rate} REQ/s, '
-            f'{self.exp_time} seconds ====='
+            f"{self.random_ratio} NON-SHARED, "
+            f"{self.num_requests} REQUESTS, "
+            f"{self.request_rate} REQ/s, "
+            f"{self.exp_time} seconds ====="
         )
+
 
 @dataclass
 class GroupedWorkloadConfig:
@@ -71,6 +81,7 @@ class GroupedWorkloadConfig:
         for i, workload_config in enumerate(self.workload_configs):
             rep_str += f"Workload {i}: {workload_config}\n"
         return rep_str
+
 
 @dataclass
 class MajorExperimentArgs:
@@ -104,7 +115,7 @@ class RequestFuncOutput:
     append_to_queue_time: float = 0.0
     route_dest: int = None
     scheduling_overhead: float = 0.0
-    runtime_selected :int = 0
+    runtime_selected: int = 0
     max_new_tokens: int = 0
 
     def update_metrics(
@@ -132,7 +143,7 @@ class RequestFuncOutput:
 
     def to_json(self):
         return json.dumps(self.__dict__)
-    
+
 
 @dataclass
 class BenchmarkMetrics:
@@ -145,7 +156,7 @@ class BenchmarkMetrics:
     p50_ttft: float
     p90_ttft: float
     p99_ttft: float
-    
+
     p50_norm_latency: float
     p90_norm_latency: float
     p99_norm_latency: float
@@ -186,15 +197,30 @@ class BenchmarkMetrics:
 
         if detail_log_path:
             with open(detail_log_path, "w") as f:
-                json.dump([asdict(result) for result in 
-                        sorted(req_func_outputs, key=lambda x: x.send_out_time)], 
-                        f, indent=4)
+                json.dump(
+                    [
+                        asdict(result)
+                        for result in sorted(
+                            req_func_outputs, key=lambda x: x.send_out_time
+                        )
+                    ],
+                    f,
+                    indent=4,
+                )
 
         ttfts = [result.ttft for result in req_func_outputs if result.ttft]
         tpots = [result.tpot for result in req_func_outputs if result.tpot]
         overall_latency = overall_latency
-        request_latencies = [result.request_latency for result in req_func_outputs if result.request_latency]
-        norm_request_latencies = [result.normalized_latency for result in req_func_outputs if result.normalized_latency]
+        request_latencies = [
+            result.request_latency
+            for result in req_func_outputs
+            if result.request_latency
+        ]
+        norm_request_latencies = [
+            result.normalized_latency
+            for result in req_func_outputs
+            if result.normalized_latency
+        ]
         throughput_tok_sec = (
             sum([result.total_tokens for result in req_func_outputs]) / overall_latency
         )
@@ -216,27 +242,48 @@ class BenchmarkMetrics:
         ]
         average_finished_tpot = np.average(finished_tpot)
         p50_tpot, p90_tpot, p99_tpot = np.percentile(tpots, [50, 90, 99])
-        
-        prefill_decode_ratio = [result.prefill_decode_ratio for result in req_func_outputs if result.prefill_decode_ratio]
 
-        finished_request_latencies = [result.request_latency for result in req_func_outputs if result.success and result.global_time <= time_limit]
+        prefill_decode_ratio = [
+            result.prefill_decode_ratio
+            for result in req_func_outputs
+            if result.prefill_decode_ratio
+        ]
+
+        finished_request_latencies = [
+            result.request_latency
+            for result in req_func_outputs
+            if result.success and result.global_time <= time_limit
+        ]
         average_request_latency, std_request_latency, average_p90 = (
             np.mean(finished_request_latencies),
             np.std(finished_request_latencies),
             np.percentile(finished_request_latencies, 90),
         )
         max_latency = np.max(finished_request_latencies)
-        p50_latency, p90_latency, p99_latency = np.percentile(finished_request_latencies, [50, 90, 99])
+        p50_latency, p90_latency, p99_latency = np.percentile(
+            finished_request_latencies, [50, 90, 99]
+        )
         average_ttft = np.mean(ttfts)
         average_topt = np.mean(tpots)
-        requests_per_sec = len([req for req in req_func_outputs if req.success]) / overall_latency
+        requests_per_sec = (
+            len([req for req in req_func_outputs if req.success]) / overall_latency
+        )
 
-        avg_scheduling_overhead = np.mean([result.scheduling_overhead for result in req_func_outputs])
-        max_scheduling_overhead = np.max([result.scheduling_overhead for result in req_func_outputs])
-        p50_ttft, pt90_ttft, p99_ttft = np.percentile(ttfts, 50), np.percentile(ttfts, 90), np.percentile(ttfts, 99)
-        p50_norm_latency, p90_norm_latency, p99_norm_latency = np.percentile(norm_request_latencies, [50, 90, 99])
+        avg_scheduling_overhead = np.mean(
+            [result.scheduling_overhead for result in req_func_outputs]
+        )
+        max_scheduling_overhead = np.max(
+            [result.scheduling_overhead for result in req_func_outputs]
+        )
+        p50_ttft, pt90_ttft, p99_ttft = (
+            np.percentile(ttfts, 50),
+            np.percentile(ttfts, 90),
+            np.percentile(ttfts, 99),
+        )
+        p50_norm_latency, p90_norm_latency, p99_norm_latency = np.percentile(
+            norm_request_latencies, [50, 90, 99]
+        )
         mean_norm_latency = np.mean(norm_request_latencies)
-
 
         return BenchmarkMetrics(
             num_finished_requests=num_finished_requests,
@@ -244,16 +291,13 @@ class BenchmarkMetrics:
             p50_tpot=p50_tpot,
             p90_tpot=p90_tpot,
             p99_tpot=p99_tpot,
-
             p50_ttft=p50_ttft,
             p90_ttft=pt90_ttft,
             p99_ttft=p99_ttft,
-            
             p50_norm_latency=p50_norm_latency,
             p90_norm_latency=p90_norm_latency,
             p99_norm_latency=p99_norm_latency,
             avg_norm_latency=mean_norm_latency,
-
             ttfts=ttfts,
             tpots=tpots,
             throughput_tok_sec=throughput_tok_sec,
@@ -273,7 +317,7 @@ class BenchmarkMetrics:
             gpu_counts=gpu_counts,
             avg_scheduling_overhead=avg_scheduling_overhead,
             max_scheduling_overhead=max_scheduling_overhead,
-            mean_norm_latency=mean_norm_latency
+            mean_norm_latency=mean_norm_latency,
         )
 
     @property
@@ -300,6 +344,68 @@ class BenchmarkMetrics:
             "prefill_decode_ratio": self.prefill_decode_ratio,
             "scheduling_overhead": self.avg_scheduling_overhead,
         }
+
+    def __rich_console__(
+        self, console: Console, options: ConsoleOptions
+    ) -> RenderResult:
+        direct_key_names = {
+            "overall_latency": "Overall Latency",
+            "requests_per_sec": "Overall Throughput",
+            "average_request_latency": "Overall Request Latency",
+            "std_request_latency": "Request Latency STD",
+            "average_p90": "Request Latency P90",
+            "mean_norm_latency": "Norm",
+            "average_ttft": "Average TTFT",
+            "average_topt": "Average TOPT",
+            "throughput_tok_sec": "Throughput ToksPerSec",
+            "num_finished_requests": "Num Finished Requests",
+            "average_finished_topt": "Finished Throughput ToksPerSec",
+            "max_latency": "Overall Max Latency",
+            "avg_norm_latency": "Avg Norm Latency",
+            "p50_norm_latency": "Normalized Latency p50",
+            "p90_norm_latency": "Normalized Latency p90",
+            "p99_norm_latency": "Normalized Latency p99",
+            "p50_latency": "Latency p50",
+            "p90_latency": "Latency p90",
+            "p99_latency": "Latency p99",
+            "avg_scheduling_overhead": "Average Scheduling Overhead",
+            "max_scheduling_overhead": "Max Scheduling Overhead",
+            "gpu_counts": "Counts",
+        }
+
+        preprocess_key_names = {
+            "p50_tpot": ("TPOT p50", f"{self.p50_tpot:.4f}"),
+            "p90_tpot": ("TPOT p90", f"{self.p90_tpot:.4f}"),
+            "p99_tpot": ("TPOT p99", f"{self.p99_tpot:.4f}"),
+            "prefill_decode_ratio": (
+                "PrefillRatio",
+                f"p50: {np.percentile(self.prefill_decode_ratio, 50):.2f}, "
+                f"p90: {np.percentile(self.prefill_decode_ratio, 90):.2f}, "
+                f"p99: {np.percentile(self.prefill_decode_ratio, 99):.2f}",
+            ),
+            "average_prefill_decode_ratio": (
+                "Overall PrefillRatio",
+                f"{np.average(self.prefill_decode_ratio):.2f}",
+            ),
+            "ttfts": (
+                "TTFT",
+                f"p50: {np.percentile(self.ttfts, 50):.4f}, "
+                f"p90: {np.percentile(self.ttfts, 90):.4f}, "
+                f"p99: {np.percentile(self.ttfts, 99):.4f}",
+            ),
+        }
+
+        benchmark_dict = asdict(self)
+        direct_attributes = {
+            label: benchmark_dict[key] for key, label in direct_key_names.items()
+        }
+        preprocess_attributes = {
+            label: str_repr for _key, (label, str_repr) in preprocess_key_names.items()
+        }
+
+        yield render_scope(
+            direct_attributes | preprocess_attributes, title=self.__class__.__name__
+        )
 
     def to_log_file(self, exp_params):
         logging.info(f"Params=({exp_params}) Overall Latency: {self.overall_latency}")
@@ -349,10 +455,36 @@ class BenchmarkMetrics:
 
     def to_csv_file(self, csv_file, exp_params):
         headers = [
-            "policy", "custom_policy", "custom_policy_msg", "rps",  "num_finished_requests", "average_finished_topt", "p50_tpot", "p90_tpot", "p99_tpot",
-            "p50_ttft", "p90_ttft", "p99_ttft", "p50_norm_latency", "p90_norm_latency", "p99_norm_latency", "avg_norm_latency", "average_request_latency", "std_request_latency", "average_p90",
-            "max_latency", "p50_latency", "p90_latency", "p99_latency", "average_ttft", "average_topt",
-            "throughput_tok_sec", "requests_per_sec", "avg_scheduling_overhead", "max_scheduling_overhead", "avg_norm_latency"
+            "policy",
+            "custom_policy",
+            "custom_policy_msg",
+            "rps",
+            "num_finished_requests",
+            "average_finished_topt",
+            "p50_tpot",
+            "p90_tpot",
+            "p99_tpot",
+            "p50_ttft",
+            "p90_ttft",
+            "p99_ttft",
+            "p50_norm_latency",
+            "p90_norm_latency",
+            "p99_norm_latency",
+            "avg_norm_latency",
+            "average_request_latency",
+            "std_request_latency",
+            "average_p90",
+            "max_latency",
+            "p50_latency",
+            "p90_latency",
+            "p99_latency",
+            "average_ttft",
+            "average_topt",
+            "throughput_tok_sec",
+            "requests_per_sec",
+            "avg_scheduling_overhead",
+            "max_scheduling_overhead",
+            "avg_norm_latency",
         ]
         parsed_params = parse_exp_params(exp_params)
         policy = parsed_params.get("policy", "")
@@ -362,28 +494,53 @@ class BenchmarkMetrics:
         # Check if file exists to decide whether to write headers
         file_exists = os.path.exists(csv_file)
 
-        with open(csv_file, 'a', newline='') as f:
+        with open(csv_file, "a", newline="") as f:
             writer = csv.writer(f)
             if not file_exists:
                 writer.writerow(headers)  # Write headers if the file did not exist
             rps = parsed_params.get("rps")
             # Prepare data row
             data = [
-                policy, custom_policy, custom_policy_msg, rps,
-                self.num_finished_requests, self.average_finished_topt, self.p50_tpot, self.p90_tpot,
-                self.p99_tpot, self.p50_ttft, self.p90_ttft, self.p99_ttft, self.p50_norm_latency, self.p90_norm_latency, self.p99_norm_latency, self.avg_norm_latency, self.average_request_latency,
-                self.std_request_latency, self.average_p90, self.max_latency, self.p50_latency, self.p90_latency,
-                self.p99_latency, self.average_ttft, self.average_topt, self.throughput_tok_sec,
-                self.requests_per_sec, self.avg_scheduling_overhead, self.max_scheduling_overhead, self.mean_norm_latency
+                policy,
+                custom_policy,
+                custom_policy_msg,
+                rps,
+                self.num_finished_requests,
+                self.average_finished_topt,
+                self.p50_tpot,
+                self.p90_tpot,
+                self.p99_tpot,
+                self.p50_ttft,
+                self.p90_ttft,
+                self.p99_ttft,
+                self.p50_norm_latency,
+                self.p90_norm_latency,
+                self.p99_norm_latency,
+                self.avg_norm_latency,
+                self.average_request_latency,
+                self.std_request_latency,
+                self.average_p90,
+                self.max_latency,
+                self.p50_latency,
+                self.p90_latency,
+                self.p99_latency,
+                self.average_ttft,
+                self.average_topt,
+                self.throughput_tok_sec,
+                self.requests_per_sec,
+                self.avg_scheduling_overhead,
+                self.max_scheduling_overhead,
+                self.mean_norm_latency,
             ]
 
             # Write data
             writer.writerow(data)
 
+
 def parse_exp_params(exp_params):
-    """ Parses the experiment parameters to extract specific values. """
+    """Parses the experiment parameters to extract specific values."""
     params = {}
-    for param in exp_params.split(','):
-        key, value = param.split('=')
+    for param in exp_params.split(","):
+        key, value = param.split("=")
         params[key.strip()] = value.strip()
     return params
