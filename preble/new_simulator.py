@@ -47,6 +47,7 @@ from sglang.srt.managers.router.infer_batch import Batch
 from benchmarks.benchmark_workload_gen import WorkloadPrefixDataLoader
 from benchmarks.benchmark_utils import RequestFuncOutput, BenchmarkMetrics
 from benchmarks.exp_configs.model_equations import (
+    llama3_70b_H100_tp2_sglang_extend_flashinfer,
     mistral_7b_A100_sglang_extend_flashinfer,
     mistral_7b_A6000_sglang_extend_flashinfer,
     mistrial_7b_A6000_sglang_decode_flashinfer,
@@ -636,21 +637,21 @@ if __name__ == "__main__":
     np.random.seed(2333)
 
     # ==================== Simulator Parameters ====================
-    REQUESTS_PER_SECOND = 8
+    REQUESTS_PER_SECOND = 1
     EXPERIMENT_TIME_SECONDS = 30
 
     # ==================== Dataloader Parameters ====================
     NUM_WORKLOADS = 10
     NUM_IN_CONTEXT_EXAMPLES = 4
-    OUTPUT_LENGTH = 10
+    OUTPUT_LENGTH = 500
 
     # ==================== Accelerator Parameters ====================
-    NUM_GPUS = 2
-    KV_CACHE_MEMORY = 1 << 30
+    NUM_GPUS = 8
+    KV_CACHE_MEMORY = (
+        131072 * 198516
+    )  # A6000 simulator configuration used in experiments
     FORWARD_SIMULATION_EXTEND = mistral_7b_A6000_sglang_extend_flashinfer
     FORWARD_SIMULATION_DECODE = mistrial_7b_A6000_sglang_decode_flashinfer
-    # FORWARD_SIMULATION_EXTEND = mistral_7b_A100_sglang_extend_flashinfer
-    # FORWARD_SIMULATION_DECODE = mistrial_7b_A6000_sglang_decode_flashinfer
 
     # ==================== Server Parameters ====================
     MODEL_NAME = "mistralai/Mistral-7B-v0.1"
@@ -669,6 +670,10 @@ if __name__ == "__main__":
         output_len=OUTPUT_LENGTH,
     )
     requests = dataloader.generate_workload(k=1)  # `k` is unused parameter
+
+    console.log(requests[0]["text"])
+    console.log(requests[0]["sampling_params"])
+    console.log(requests[0]["rid"])
 
     # ==================== Computed Accelerator Parameters ====================
     gpu_configs = [
@@ -706,6 +711,9 @@ if __name__ == "__main__":
     simulator.start_model_forwarding_loop()
 
     results = simulator.run()
+
+    console.log(results[0])
+    console.log(results[1])
 
     # ==================== Processing Benchmarks ====================
     bench_metrics = BenchmarkMetrics.gen_benchmark_metrics(
