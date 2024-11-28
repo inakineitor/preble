@@ -16,7 +16,7 @@ import re
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from benchmark.benchmark_workload_gen import (
+from benchmarks.benchmark_workload_gen import (
     DataLoader,
     get_react_workload,
     LoadDistribution,

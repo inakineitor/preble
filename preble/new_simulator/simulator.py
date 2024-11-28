@@ -1,5 +1,6 @@
-from typing import List, Optional, Union, Tuple, Dict
+from typing import List, Optional, Union, Dict
 import uuid
+import sys
 import os
 import json
 from abc import ABC, abstractclassmethod
@@ -8,55 +9,39 @@ import numpy as np
 import time
 from transformers import AutoTokenizer
 import logging
-import torch
 import random
 from dataclasses import asdict
 from enum import Enum
 
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from sglang.srt.server_args import PortArgs, ServerArgs
-from sglang.srt.conversation import (
-    Conversation,
-    SeparatorStyle,
-    chat_template_exists,
-    generate_chat_conv,
-    register_conv_template,
-)
-from sglang.srt.managers.tokenizer_manager import TokenizerManager
-from sglang.srt.managers.router.manager import RouterManager
-from sglang.srt.managers.router.model_rpc import ModelRpcClient, ModelRpcServer
-from sglang.srt.hf_transformers_utils import get_tokenizer
+from sglang.srt.managers.router.model_rpc import ModelRpcServer
 from sglang.srt.managers.router.model_runner import GPUConfig
 from data_parallel_request_cache import (
     DataParallelRequestRouter,
     DataParallelRuntimeSelectionPolicy,
 )
 from sglang.srt.managers.io_struct import (
-    BatchStrOut,
     BatchTokenIDOut,
-    DetokenizeReqInput,
-    FlushCacheReq,
     GenerateReqInput,
     TokenizedGenerateReqInput,
-    SchedulingMetricsReqInput,
-    SchedulingMetricsOut,
-    DumpTrace,
 )
 from sglang.srt.sampling_params import SamplingParams
 from sglang.global_config import global_config
-from sglang.srt.managers.router.infer_batch import Batch
 from benchmarks.benchmark_workload_gen import WorkloadPrefixDataLoader
+
+from data_loaders.high_variance_workload_prefix_data_loader import (
+    HighVarianceWorkloadPrefixDataLoader,
+)
 from benchmarks.benchmark_utils import RequestFuncOutput, BenchmarkMetrics
 from benchmarks.exp_configs.model_equations import (
-    llama3_70b_H100_tp2_sglang_extend_flashinfer,
-    mistral_7b_A100_sglang_extend_flashinfer,
     mistral_7b_A6000_sglang_extend_flashinfer,
     mistrial_7b_A6000_sglang_decode_flashinfer,
 )
 
-from rich.console import Console, ConsoleOptions, RenderResult
-from rich.table import Table
+from rich.console import Console
 from rich.logging import RichHandler
-from rich.syntax import Syntax
 from rich.scope import render_scope
 
 console = Console()
@@ -662,7 +647,15 @@ if __name__ == "__main__":
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
     # ==================== Computed Dataloader Parameters ====================
-    dataloader = WorkloadPrefixDataLoader(
+    # NOTE: Original data loader
+    # dataloader = WorkloadPrefixDataLoader(
+    #     NUM_WORKLOADS,
+    #     num_requests,
+    #     tokenizer,
+    #     num_in_context_examples=NUM_IN_CONTEXT_EXAMPLES,
+    #     output_len=OUTPUT_LENGTH,
+    # )
+    dataloader = HighVarianceWorkloadPrefixDataLoader(
         NUM_WORKLOADS,
         num_requests,
         tokenizer,
