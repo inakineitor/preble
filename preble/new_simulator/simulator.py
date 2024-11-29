@@ -12,6 +12,7 @@ import random
 from dataclasses import asdict
 from enum import Enum
 
+from preble.global_scheduler_with_time import GlobalSchedulerWithTime
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.scope import render_scope
@@ -698,7 +699,9 @@ if __name__ == "__main__":
     ]
     # vocab_size = runtimes[0].model_rpc.model_config.vocab_size
     router = DataParallelRequestRouter(
-        DataParallelRuntimeSelectionPolicy.RANDOM, total_nodes=NUM_GPUS
+        DataParallelRuntimeSelectionPolicy.RANDOM,
+        total_nodes=NUM_GPUS,
+        custom_runtime_selector=GlobalSchedulerWithTime,
     )
 
     console.log(server_args)
