@@ -11,6 +11,7 @@ from transformers import (
 )
 import copy
 import re
+import numpy as np
 
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -23,6 +24,12 @@ from benchmarks.benchmark_workload_gen import (
 )
 
 
+def sample_from_distribution(value_probabilities: list[tuple[float, int]]):
+    probabilities, values = tuple(zip(*value_probabilities))
+    random_generator = np.random.default_rng()
+    return int(random_generator.choice(values, p=probabilities))
+
+
 class HighVarianceWorkloadPrefixDataLoader(DataLoader):
     def __init__(
         self,
@@ -31,7 +38,10 @@ class HighVarianceWorkloadPrefixDataLoader(DataLoader):
         tokenizer: Union[PreTrainedTokenizer, PreTrainedTokenizerFast],
         load_dist: LoadDistribution = LoadDistribution.EVEN,
         distribution_of_non_shared: float = 0.0,
-        output_len: int = 1,
+        # output_len: int = 1,
+        output_length_distribution: list[tuple[float, int]] = [
+            (1.0, 1)
+        ],  # List of (probablity, output length)
         num_in_context_examples: int = 4,
         random_workload_path=None,
         workload_start_from: int = 0,
@@ -44,7 +54,8 @@ class HighVarianceWorkloadPrefixDataLoader(DataLoader):
             "random", num_patterns, total_num_requests, tokenizer, load_dist
         )
         self.distribution_of_non_shared = distribution_of_non_shared
-        self.output_len = output_len
+        # self.output_len = output_len
+        self.output_length_distribution = output_length_distribution
         self.num_in_context_examples = num_in_context_examples
         self.random_workload_path = random_workload_path
         self.workload_start_from = workload_start_from
@@ -53,21 +64,22 @@ class HighVarianceWorkloadPrefixDataLoader(DataLoader):
         if self.context_len:
             self.num_in_context_examples = math.ceil(self.context_len / 475)
 
-    def generate_workload(self, k):
+    def generate_workload(self, k: int):
         num_prefixed_shared = int(
             self.total_num_requests * (1 - self.distribution_of_non_shared)
         )
         num_non_shared = int(self.total_num_requests * self.distribution_of_non_shared)
         workload = []
-        output_len = self.output_len
-        if self.decoding_size:
-            output_len = self.decoding_size
-        sampling_params = {
-            "experiment_id": f"random_experiment_{self.num_patterns}_{self.distribution_of_non_shared}_{self.total_num_requests}",
-            "temperature": 0,
-            "max_new_tokens": output_len,
-            "ignore_eos": True,  # For better micro-benchmark
-        }
+
+        def get_sampling_params():
+            output_length = sample_from_distribution(self.output_length_distribution)
+            return {
+                "experiment_id": f"random_experiment_{self.num_patterns}_{self.distribution_of_non_shared}_{self.total_num_requests}",
+                "temperature": 0,
+                "max_new_tokens": output_length,
+                "ignore_eos": True,  # For better micro-benchmark
+            }
+
         for i in range(num_prefixed_shared):
             workload_num = self.workload_start_from + i % self.num_patterns
             prompt = get_react_workload(
@@ -76,7 +88,7 @@ class HighVarianceWorkloadPrefixDataLoader(DataLoader):
             workload.append(
                 {
                     "text": prompt,
-                    "sampling_params": copy.deepcopy(sampling_params),
+                    "sampling_params": get_sampling_params(),
                     "rid": uuid.uuid4().hex,
                 }
             )
@@ -90,7 +102,7 @@ class HighVarianceWorkloadPrefixDataLoader(DataLoader):
             workload.append(
                 {
                     "text": prompt,
-                    "sampling_params": copy.deepcopy(sampling_params),
+                    "sampling_params": get_sampling_params(),
                     "rid": uuid.uuid4().hex,
                 }
             )
@@ -120,8 +132,6 @@ class HighVarianceWorkloadPrefixDataLoader(DataLoader):
             "total_num_requests": self.total_num_requests,
             "load_dist": str(self.load_dist),
             "random_ratio": self.distribution_of_non_shared,
-            "output_len": (
-                self.output_len if not self.decoding_size else self.decoding_size
-            ),
+            "output_length_distribution": self.output_length_distribution,
             "num_in_context_examples": self.num_in_context_examples,
         }

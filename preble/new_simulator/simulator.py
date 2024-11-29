@@ -7,21 +7,18 @@ from abc import ABC, abstractclassmethod
 import heapq
 import numpy as np
 import time
-from transformers import AutoTokenizer
 import logging
 import random
 from dataclasses import asdict
 from enum import Enum
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
+from rich.console import Console
+from rich.logging import RichHandler
+from rich.scope import render_scope
+from transformers import AutoTokenizer
 from sglang.srt.server_args import PortArgs, ServerArgs
 from sglang.srt.managers.router.model_rpc import ModelRpcServer
 from sglang.srt.managers.router.model_runner import GPUConfig
-from data_parallel_request_cache import (
-    DataParallelRequestRouter,
-    DataParallelRuntimeSelectionPolicy,
-)
 from sglang.srt.managers.io_struct import (
     BatchTokenIDOut,
     GenerateReqInput,
@@ -29,20 +26,29 @@ from sglang.srt.managers.io_struct import (
 )
 from sglang.srt.sampling_params import SamplingParams
 from sglang.global_config import global_config
-from benchmarks.benchmark_workload_gen import WorkloadPrefixDataLoader
+import numpy as np
+import matplotlib
 
+matplotlib.use("module://matplotlib-backend-kitty")
+import matplotlib.pyplot as plt
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from data_parallel_request_cache import (
+    DataParallelRequestRouter,
+    DataParallelRuntimeSelectionPolicy,
+)
+from benchmarks.benchmark_workload_gen import WorkloadPrefixDataLoader
 from data_loaders.high_variance_workload_prefix_data_loader import (
     HighVarianceWorkloadPrefixDataLoader,
 )
+from data_analysis.data_analysis_suite import run_data_analysis_suite
 from benchmarks.benchmark_utils import RequestFuncOutput, BenchmarkMetrics
 from benchmarks.exp_configs.model_equations import (
     mistral_7b_A6000_sglang_extend_flashinfer,
     mistrial_7b_A6000_sglang_decode_flashinfer,
 )
 
-from rich.console import Console
-from rich.logging import RichHandler
-from rich.scope import render_scope
 
 console = Console()
 
@@ -326,6 +332,7 @@ class Simulation:
             f"total forwarded tokens: {[r.model_rpc.total_forwarded_tokens for r in self.runtimes]}, "
             f"total cache hit tokens: {[r.model_rpc.total_cache_hit_tokens for r in self.runtimes]}"
         )
+
         with open("output.json", "w") as f:
             f.write(json.dumps(all_req_outputs, indent=4))
         return [rq for rq in self.request_output.values()]
@@ -628,10 +635,14 @@ if __name__ == "__main__":
     # ==================== Dataloader Parameters ====================
     NUM_WORKLOADS = 10
     NUM_IN_CONTEXT_EXAMPLES = 4
-    OUTPUT_LENGTH = 500
+    OUTPUT_LENGTH = 500  # For fixed length dataloaders
+    OUTPUT_LENGTH_DISTRIBUTION = [
+        (0.5, 1),
+        (0.5, 200),
+    ]  # For varaible length distributions
 
     # ==================== Accelerator Parameters ====================
-    NUM_GPUS = 8
+    NUM_GPUS = 4
     KV_CACHE_MEMORY = (
         131072 * 198516
     )  # A6000 simulator configuration used in experiments
@@ -660,13 +671,9 @@ if __name__ == "__main__":
         num_requests,
         tokenizer,
         num_in_context_examples=NUM_IN_CONTEXT_EXAMPLES,
-        output_len=OUTPUT_LENGTH,
+        output_length_distribution=OUTPUT_LENGTH_DISTRIBUTION,
     )
     requests = dataloader.generate_workload(k=1)  # `k` is unused parameter
-
-    console.log(requests[0]["text"])
-    console.log(requests[0]["sampling_params"])
-    console.log(requests[0]["rid"])
 
     # ==================== Computed Accelerator Parameters ====================
     gpu_configs = [
@@ -706,7 +713,9 @@ if __name__ == "__main__":
     results = simulator.run()
 
     console.log(results[0])
-    console.log(results[1])
+    # console.log(results[1])
+    # console.log(results[2])
+    # console.log(results[3])
 
     # ==================== Processing Benchmarks ====================
     bench_metrics = BenchmarkMetrics.gen_benchmark_metrics(
@@ -732,5 +741,7 @@ if __name__ == "__main__":
         )
     )
     console.log(bench_metrics)
+
+    run_data_analysis_suite(results)
 
     # bench_metrics.to_log_file(exp_params)

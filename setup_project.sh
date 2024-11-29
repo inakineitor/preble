@@ -24,6 +24,10 @@ if (($? == 0)); then
 	pip install rich
 	echo "Rich installed"
 
+	echo "Installing matplotlib-backend-kitty"
+	pip install matplotlib-backend-kitty
+	echo "matplotlib-backend-kitty installed"
+
 	conda deactivate
 fi
 
