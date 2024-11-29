@@ -1,6 +1,6 @@
 from collections import defaultdict
 from datetime import datetime, timedelta
-from benchmarks.benchmark_utils import RequestFuncOutput
+from preble.benchmarks.benchmark_utils import RequestFuncOutput
 from global_lru_cache import LPRadixCache, TreeNode
 import time
 import numpy as np
@@ -12,7 +12,7 @@ from transformers import AutoTokenizer
 import logging
 import copy
 import math
-from benchmarks.exp_configs.model_equations import (
+from preble.benchmarks.exp_configs.model_equations import (
     LP_mistral_7b_A6000_sglang_extend_flashinfer as prefill_time,
 )
 

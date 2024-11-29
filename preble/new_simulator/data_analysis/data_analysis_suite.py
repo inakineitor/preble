@@ -59,7 +59,7 @@ def run_data_analysis_suite(requests: list[RequestFuncOutput]):
     plot_ttft_vs_length(ax2, max_new_tokens, ttfts)
     fig1.tight_layout()
     fig1.savefig("latency_and_ttft_vs_length.png")
-    fig1.show()
+    # fig1.show()
 
     # Set 2: Latency and TTFT distributions (frequencies)
     fig2, (ax3, ax4) = plt.subplots(1, 2, figsize=(12, 6))
@@ -67,4 +67,4 @@ def run_data_analysis_suite(requests: list[RequestFuncOutput]):
     plot_ttft_distribution(ax4, ttfts)
     fig2.tight_layout()
     fig2.savefig("latency_and_ttft_distribution.png")
-    fig2.show()
+    # fig2.show()

@@ -636,14 +636,14 @@ if __name__ == "__main__":
     # ==================== Dataloader Parameters ====================
     NUM_WORKLOADS = 10
     NUM_IN_CONTEXT_EXAMPLES = 4
-    OUTPUT_LENGTH = 500  # For fixed length dataloaders
+    OUTPUT_LENGTH = 100  # For fixed length dataloaders
     OUTPUT_LENGTH_DISTRIBUTION = [
         (0.5, 1),
         (0.5, 200),
     ]  # For varaible length distributions
 
     # ==================== Accelerator Parameters ====================
-    NUM_GPUS = 4
+    NUM_GPUS = 8
     KV_CACHE_MEMORY = (
         131072 * 198516
     )  # A6000 simulator configuration used in experiments
@@ -699,9 +699,14 @@ if __name__ == "__main__":
     ]
     # vocab_size = runtimes[0].model_rpc.model_config.vocab_size
     router = DataParallelRequestRouter(
-        DataParallelRuntimeSelectionPolicy.RANDOM,
+        DataParallelRuntimeSelectionPolicy.ROUND_ROBIN,
         total_nodes=NUM_GPUS,
-        custom_runtime_selector=GlobalSchedulerWithTime,
+        custom_runtime_selector=GlobalSchedulerWithTime(
+            num_nodes=NUM_GPUS,
+            enable_eviction=False,
+            enable_rebalancing=True,
+            enable_miss_rate=True,
+        ),
     )
 
     console.log(server_args)
