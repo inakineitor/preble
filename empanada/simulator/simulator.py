@@ -1,13 +1,16 @@
-from typing import List, Optional, Union
+from abc import abstractmethod
+from typing import Callable, List, Optional, Protocol, Union
 import uuid
 import logging
 import random
+from dataclasses import dataclass
 
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.scope import render_scope
 from transformers import AutoTokenizer
 import numpy as np
+import torch
 
 from sglang.srt.server_args import ServerArgs
 from sglang.srt.managers.router.model_runner import GPUConfig
@@ -24,6 +27,7 @@ from preble.benchmarks.exp_configs.model_equations import (
     mistrial_7b_A6000_sglang_decode_flashinfer,
 )
 
+from empanada.simulator.simulation import SimulationParameters
 from empanada.scheduler.empanada_scheduler import EmpanadaScheduler
 from empanada.data_loaders.high_variance_workload_prefix_data_loader import (
     HighVarianceWorkloadPrefixDataLoader,
@@ -33,6 +37,7 @@ from empanada.data_analysis.data_analysis_suite import (
 )
 from empanada.simulator.server_runtime_simulator import (
     ServerRuntimeSimulator,
+    ServerRuntimeSimulatorParameters,
 )
 from empanada.simulator.simulation import Simulation
 
@@ -127,6 +132,26 @@ def create_simulator_args(
     return profile_mode, server_args
 
 
+@dataclass
+class AcceleratorParameters:
+    num_gpus: int
+    kv_cache_memory: int  # number of bytes
+    forward_simulation_extend: Callable[
+        [int, int, int, list[int], Optional[int], Optional[torch.Tensor]], float
+    ]
+    forward_simulation_decode: Callable[[int, int, int, Optional[int]], float]
+
+
+@dataclass
+class SimulatorParameters:
+    simulation_parameters: SimulationParameters
+    accelerator_parameters: AcceleratorParameters
+    server_runtime_simulator_parameters: ServerRuntimeSimulatorParameters
+    requests_per_second: float
+    experiment_time_seconds: float
+    model_name: str
+
+
 def create_gpu(
     id: int,
     server_args: ServerArgs,
@@ -171,6 +196,8 @@ def main():
 
     # ==================== Server Parameters ====================
     MODEL_NAME = "mistralai/Mistral-7B-v0.1"
+
+    # ==================== Data Structure Configuration ====================
 
     # ==================== Computed Simulator Parameters ====================
     num_requests = int(REQUESTS_PER_SECOND * EXPERIMENT_TIME_SECONDS)

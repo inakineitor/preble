@@ -3,7 +3,7 @@ import json
 import heapq
 import numpy as np
 import logging
-from dataclasses import asdict
+from dataclasses import dataclass, asdict
 
 import numpy as np
 
@@ -31,6 +31,12 @@ from empanada.simulator.simulation_events.model_step_event import (
 )
 
 
+@dataclass
+class SimulationParameters:
+    runtimes: list[ServerRuntimeSimulator]
+    router: DataParallelRequestRouter
+
+
 class Simulation:
     def __init__(
         self, runtimes: list[ServerRuntimeSimulator], router: DataParallelRequestRouter
@@ -43,6 +49,12 @@ class Simulation:
         self.request_output: Dict[str, RequestFuncOutput] = {}
         self.unfinished_requests = 0
         self.rid_to_input = {}  # rid -> input request
+
+    @classmethod
+    def from_simulation_parameters(cls, simulation_parameters: SimulationParameters):
+        return cls(
+            runtimes=simulation_parameters.runtimes, router=simulation_parameters.router
+        )
 
     def add_event(self, event: simulation_event.SimulationEvent):
         heapq.heappush(self.events, event)

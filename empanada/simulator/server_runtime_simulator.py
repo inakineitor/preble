@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
@@ -6,6 +7,13 @@ from sglang.srt.managers.router.model_rpc import ModelRpcServer
 from sglang.srt.managers.router.model_runner import GPUConfig
 
 from empanada.utils.uuid import random_uuid_string
+
+
+@dataclass
+class ServerRuntimeSimulatorParameters:
+    gpu_config: GPUConfig
+    server_args: ServerArgs
+    profile_mode: bool
 
 
 # Use simulated ModelRpcServer to maintain node state
@@ -40,6 +48,16 @@ class ServerRuntimeSimulator:
         self.local_clock = 0.0
         self.tokenizer_clock = 0.0
         self.manager_clock = 0.0
+
+    @classmethod
+    def from_server_runtime_simulator_parameters(
+        cls, parameters: ServerRuntimeSimulatorParameters
+    ):
+        return cls(
+            gpu_config=parameters.gpu_config,
+            server_args=parameters.server_args,
+            profile_mode=parameters.profile_mode,
+        )
 
     def reset_clock(self):
         self.local_clock = 0.0
