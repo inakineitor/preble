@@ -143,8 +143,7 @@ def create_gpu(
     return gpu_config
 
 
-if __name__ == "__main__":
-
+def main():
     # Set random seeds
     random.seed(2333)
     np.random.seed(2333)
@@ -273,3 +272,7 @@ if __name__ == "__main__":
     run_data_analysis_suite(results)
 
     # bench_metrics.to_log_file(exp_params)
+
+
+if __name__ == "__main__":
+    main()
