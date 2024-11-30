@@ -374,9 +374,9 @@ class EmpanadaScheduler:
         decoding_length = sampling_params.get(
             "max_new_tokens", sampling_params.get("max_tokens", 45)
         )
-        print("=======================")
-        print("BEING USED!!!!!!!!!")
-        print("=======================")
+        # print("=======================")
+        # print("BEING USED!!!!!!!!!")
+        # print("=======================")
         # Tokenize the text
         start_time = time.time()
         with self.lock:
