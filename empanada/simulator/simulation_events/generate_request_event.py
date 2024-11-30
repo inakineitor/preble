@@ -8,18 +8,18 @@ from sglang.srt.managers.io_struct import (
 from sglang.srt.sampling_params import SamplingParams
 
 
-from preble.empanada.simulator.server_runtime_simulator import (
+from empanada.simulator.server_runtime_simulator import (
     ServerRuntimeSimulator,
 )
-from preble.empanada.simulator.simulation_events.simulation_event import (
+from empanada.simulator.simulation_events.simulation_event import (
     SimulationEvent,
 )
-from preble.empanada.simulator.simulation_events.add_to_manager_queue_event import (
+from empanada.simulator.simulation_events.add_to_manager_queue_event import (
     AddToManagerQueueEvent,
 )
 
 if TYPE_CHECKING:
-    from preble.empanada.simulator.simulation import Simulation
+    from empanada.simulator.simulation import Simulation
 
 
 class GenerateRequestEvent(SimulationEvent):

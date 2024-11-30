@@ -2,12 +2,12 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Optional, TYPE_CHECKING
 
-from preble.empanada.simulator.server_runtime_simulator import (
+from empanada.simulator.server_runtime_simulator import (
     ServerRuntimeSimulator,
 )
 
 if TYPE_CHECKING:
-    from preble.empanada.simulator.simulation import Simulation
+    from empanada.simulator.simulation import Simulation
 
 
 class SimulationEvent(ABC):

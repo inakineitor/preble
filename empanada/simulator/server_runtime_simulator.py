@@ -5,7 +5,7 @@ from sglang.srt.server_args import PortArgs, ServerArgs
 from sglang.srt.managers.router.model_rpc import ModelRpcServer
 from sglang.srt.managers.router.model_runner import GPUConfig
 
-from preble.empanada.utils.uuid import random_uuid_string
+from empanada.utils.uuid import random_uuid_string
 
 
 # Use simulated ModelRpcServer to maintain node state

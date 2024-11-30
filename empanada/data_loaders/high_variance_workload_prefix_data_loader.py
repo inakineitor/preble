@@ -1,23 +1,17 @@
 import random
 import uuid
 import math
-import sys
-import os
 from typing import Optional, Union
+import re
 
 from transformers import (
     PreTrainedTokenizer,
     PreTrainedTokenizerFast,
 )
-import copy
-import re
 import numpy as np
 
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
-
-from benchmarks.benchmark_workload_gen import (
+from preble.benchmarks.benchmark_workload_gen import (
     DataLoader,
     get_react_workload,
     LoadDistribution,

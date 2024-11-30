@@ -7,18 +7,19 @@ import numpy as np
 from sglang.srt.managers.io_struct import (
     GenerateReqInput,
 )
+
 from preble.benchmarks.benchmark_utils import RequestFuncOutput
 
-from preble.empanada.simulator.simulation_events.simulation_event import (
+from empanada.simulator.simulation_events.simulation_event import (
     SimulationEvent,
 )
-from preble.empanada.utils.uuid import random_uuid_string
-from preble.empanada.simulator.simulation_events.generate_request_event import (
+from empanada.utils.uuid import random_uuid_string
+from empanada.simulator.simulation_events.generate_request_event import (
     GenerateRequestEvent,
 )
 
 if TYPE_CHECKING:
-    from preble.empanada.simulator.simulation import Simulation
+    from empanada.simulator.simulation import Simulation
 
 
 class SendRequestEvent(SimulationEvent):

@@ -10,14 +10,13 @@ from collections import deque
 from typing import List, Tuple, Dict
 from transformers import AutoTokenizer
 import logging
-import copy
-import math
+
 from preble.benchmarks.exp_configs.model_equations import (
     LP_mistral_7b_A6000_sglang_extend_flashinfer as prefill_time,
 )
 
 # from benchmarks.exp_configs.model_equations import LP_Llama3_70B_H100_sglang_extend_flashinfer as prefill_time
-from ttft_overload_detector import TTFTWindowedOverloadedDetector
+from preble.ttft_overload_detector import TTFTWindowedOverloadedDetector
 
 tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-v0.1")
 

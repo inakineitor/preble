@@ -7,15 +7,15 @@ from sglang.srt.managers.io_struct import (
 )
 from sglang.global_config import global_config
 
-from preble.empanada.simulator.simulation_events.simulation_event import (
+from empanada.simulator.simulation_events.simulation_event import (
     SimulationEvent,
 )
-from preble.empanada.simulator.server_runtime_simulator import (
+from empanada.simulator.server_runtime_simulator import (
     ServerRuntimeSimulator,
 )
 
 if TYPE_CHECKING:
-    from preble.empanada.simulator.simulation import Simulation
+    from empanada.simulator.simulation import Simulation
 
 
 class ModelStepEvent(SimulationEvent):

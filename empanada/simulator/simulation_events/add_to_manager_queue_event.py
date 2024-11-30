@@ -1,11 +1,11 @@
 from typing import TYPE_CHECKING
 
-from preble.empanada.simulator.simulation_events.simulation_event import (
+from empanada.simulator.simulation_events.simulation_event import (
     SimulationEvent,
 )
 
 if TYPE_CHECKING:
-    from preble.empanada.simulator.simulation import Simulation
+    from empanada.simulator.simulation import Simulation
 
 
 class AddToManagerQueueEvent(SimulationEvent):

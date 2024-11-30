@@ -1,7 +1,5 @@
-from typing import List, Optional, Union, Dict
+from typing import List, Optional, Union
 import uuid
-import sys
-import os
 import logging
 import random
 
@@ -14,29 +12,29 @@ import numpy as np
 from sglang.srt.server_args import ServerArgs
 from sglang.srt.managers.router.model_runner import GPUConfig
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from preble.empanada.scheduler.empanada_scheduler import EmpanadaScheduler
 from preble.data_parallel_request_cache import (
     DataParallelRequestRouter,
     DataParallelRuntimeSelectionPolicy,
 )
 from preble.benchmarks.benchmark_workload_gen import WorkloadPrefixDataLoader
-from preble.empanada.data_loaders.high_variance_workload_prefix_data_loader import (
-    HighVarianceWorkloadPrefixDataLoader,
-)
-from preble.empanada.data_analysis.data_analysis_suite import (
-    run_data_analysis_suite,
-)
 from preble.benchmarks.benchmark_utils import BenchmarkMetrics
 from preble.benchmarks.exp_configs.model_equations import (
     mistral_7b_A6000_sglang_extend_flashinfer,
     mistrial_7b_A6000_sglang_decode_flashinfer,
 )
-from preble.empanada.simulator.server_runtime_simulator import (
+
+from empanada.scheduler.empanada_scheduler import EmpanadaScheduler
+from empanada.data_loaders.high_variance_workload_prefix_data_loader import (
+    HighVarianceWorkloadPrefixDataLoader,
+)
+from empanada.data_analysis.data_analysis_suite import (
+    run_data_analysis_suite,
+)
+from empanada.simulator.server_runtime_simulator import (
     ServerRuntimeSimulator,
 )
-from preble.empanada.simulator.simulation import Simulation
+from empanada.simulator.simulation import Simulation
 
 
 console = Console()

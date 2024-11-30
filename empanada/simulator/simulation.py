@@ -16,17 +16,17 @@ from preble.data_parallel_request_cache import (
 )
 from preble.benchmarks.benchmark_utils import RequestFuncOutput
 
-from preble.empanada.simulator.server_runtime_simulator import (
+from empanada.simulator.server_runtime_simulator import (
     ServerRuntimeSimulator,
 )
-import preble.empanada.simulator.simulation_events.simulation_event as simulation_event
-from preble.empanada.simulator.simulation_events.send_request_event import (
+import empanada.simulator.simulation_events.simulation_event as simulation_event
+from empanada.simulator.simulation_events.send_request_event import (
     SendRequestEvent,
 )
-from preble.empanada.simulator.simulation_events.generate_request_event import (
+from empanada.simulator.simulation_events.generate_request_event import (
     GenerateRequestEvent,
 )
-from preble.empanada.simulator.simulation_events.model_step_event import (
+from empanada.simulator.simulation_events.model_step_event import (
     ModelStepEvent,
 )
 
