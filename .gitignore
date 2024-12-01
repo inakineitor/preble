@@ -194,3 +194,7 @@ ToolAlpaca
 
 # personnal
 work_dirs/
+*.out
+*.safetensors
+*.pt
+*.pth
