@@ -1,13 +1,9 @@
-from abc import abstractmethod
-from typing import Callable, List, Optional, Protocol, Union
+from typing import Any, Callable, List, Optional, Union
 import uuid
 import logging
 import random
 from dataclasses import dataclass
 
-from rich.console import Console
-from rich.logging import RichHandler
-from rich.scope import render_scope
 from transformers import AutoTokenizer
 import numpy as np
 import torch
@@ -18,44 +14,18 @@ from sglang.srt.managers.router.model_runner import GPUConfig
 
 from preble.data_parallel_request_cache import (
     DataParallelRequestRouter,
-    DataParallelRuntimeSelectionPolicy,
 )
-from preble.benchmarks.benchmark_workload_gen import WorkloadPrefixDataLoader
-from preble.benchmarks.benchmark_utils import BenchmarkMetrics
-from preble.benchmarks.exp_configs.model_equations import (
-    mistral_7b_A6000_sglang_extend_flashinfer,
-    mistrial_7b_A6000_sglang_decode_flashinfer,
+from preble.benchmarks.benchmark_workload_gen import (
+    DataLoader,
 )
+from preble.benchmarks.benchmark_utils import BenchmarkMetrics, RequestFuncOutput
 
-from empanada.simulator.simulation import SimulationParameters
-from empanada.scheduler.empanada_scheduler import EmpanadaScheduler
-from empanada.data_loaders.high_variance_workload_prefix_data_loader import (
-    HighVarianceWorkloadPrefixDataLoader,
-)
-from empanada.data_analysis.data_analysis_suite import (
-    run_data_analysis_suite,
-)
 from empanada.simulator.server_runtime_simulator import (
     ServerRuntimeSimulator,
-    ServerRuntimeSimulatorParameters,
 )
 from empanada.simulator.simulation import Simulation
 
 
-console = Console()
-
-logging.getLogger("requests").setLevel(logging.WARNING)
-logging.getLogger("urllib3").setLevel(logging.WARNING)
-logging.getLogger("filelock").setLevel(logging.WARNING)
-logging.getLogger("matplotlib").setLevel(logging.WARNING)
-logging.getLogger("paramiko").setLevel(logging.WARNING)
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(message)s",
-    datefmt="[%X]",
-    handlers=[RichHandler(console=console, rich_tracebacks=True)],
-)  # NOTE: Change from INFO to DEBUG to see all info
 logger = logging.getLogger(__name__)
 
 
@@ -144,11 +114,15 @@ class AcceleratorParameters:
 
 @dataclass
 class SimulatorParameters:
-    simulation_parameters: SimulationParameters
     accelerator_parameters: AcceleratorParameters
-    server_runtime_simulator_parameters: ServerRuntimeSimulatorParameters
+    create_data_parallel_request_router: Callable[
+        [int], DataParallelRequestRouter
+    ]  # (num_gpus: int) -> DataParallelRequestRouter
+    create_data_loader: Callable[
+        [int, Any], DataLoader
+    ]  # (num_requests: int, tokenizer: Any) -> DataLoader
     requests_per_second: float
-    experiment_time_seconds: float
+    experiment_time_seconds: int
     model_name: str
 
 
@@ -168,71 +142,49 @@ def create_gpu(
     return gpu_config
 
 
-def main():
+def create_gpus(server_args: ServerArgs, accelerator_parameters: AcceleratorParameters):
+    return [
+        create_gpu(
+            gpu_id,
+            server_args,
+            accelerator_parameters.forward_simulation_extend,
+            accelerator_parameters.forward_simulation_decode,
+            accelerator_parameters.kv_cache_memory,
+        )
+        for gpu_id in range(accelerator_parameters.num_gpus)
+    ]
+
+
+@dataclass
+class SimulatorOutput:
+    requests: list[Any]  # TODO: Replace
+    results: list[RequestFuncOutput]
+    benchmark_metrics: BenchmarkMetrics
+    generated_server_args: ServerArgs
+
+
+def run_simulator(simulator_parameters: SimulatorParameters) -> SimulatorOutput:
     # Set random seeds
     random.seed(2333)
     np.random.seed(2333)
 
-    # ==================== Simulator Parameters ====================
-    REQUESTS_PER_SECOND = 1
-    EXPERIMENT_TIME_SECONDS = 30
-
-    # ==================== Dataloader Parameters ====================
-    NUM_WORKLOADS = 10
-    NUM_IN_CONTEXT_EXAMPLES = 4
-    OUTPUT_LENGTH = 100  # For fixed length dataloaders
-    OUTPUT_LENGTH_DISTRIBUTION = [
-        (0.5, 1),
-        (0.5, 200),
-    ]  # For varaible length distributions
-
-    # ==================== Accelerator Parameters ====================
-    NUM_GPUS = 8
-    KV_CACHE_MEMORY = (
-        131072 * 198516
-    )  # A6000 simulator configuration used in experiments
-    FORWARD_SIMULATION_EXTEND = mistral_7b_A6000_sglang_extend_flashinfer
-    FORWARD_SIMULATION_DECODE = mistrial_7b_A6000_sglang_decode_flashinfer
-
-    # ==================== Server Parameters ====================
-    MODEL_NAME = "mistralai/Mistral-7B-v0.1"
-
-    # ==================== Data Structure Configuration ====================
-
     # ==================== Computed Simulator Parameters ====================
-    num_requests = int(REQUESTS_PER_SECOND * EXPERIMENT_TIME_SECONDS)
-    profile_mode, server_args = create_simulator_args(model_path=MODEL_NAME)
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    num_requests = int(
+        simulator_parameters.requests_per_second
+        * simulator_parameters.experiment_time_seconds
+    )
+    profile_mode, server_args = create_simulator_args(
+        model_path=simulator_parameters.model_name
+    )
+    tokenizer = AutoTokenizer.from_pretrained(simulator_parameters.model_name)
 
     # ==================== Computed Dataloader Parameters ====================
     # NOTE: Original data loader
-    # dataloader = WorkloadPrefixDataLoader(
-    #     NUM_WORKLOADS,
-    #     num_requests,
-    #     tokenizer,
-    #     num_in_context_examples=NUM_IN_CONTEXT_EXAMPLES,
-    #     output_len=OUTPUT_LENGTH,
-    # )
-    dataloader = HighVarianceWorkloadPrefixDataLoader(
-        NUM_WORKLOADS,
-        num_requests,
-        tokenizer,
-        num_in_context_examples=NUM_IN_CONTEXT_EXAMPLES,
-        output_length_distribution=OUTPUT_LENGTH_DISTRIBUTION,
-    )
-    requests = dataloader.generate_workload(k=1)  # `k` is unused parameter
+    dataloader = simulator_parameters.create_data_loader(num_requests, tokenizer)
+    requests = dataloader.generate_workload()
 
     # ==================== Computed Accelerator Parameters ====================
-    gpu_configs = [
-        create_gpu(
-            gpu_id,
-            server_args,
-            FORWARD_SIMULATION_EXTEND,
-            FORWARD_SIMULATION_DECODE,
-            KV_CACHE_MEMORY,
-        )
-        for gpu_id in range(NUM_GPUS)
-    ]
+    gpu_configs = create_gpus(server_args, simulator_parameters.accelerator_parameters)
 
     # ==================== Computed Server Parameters ====================
     runtimes = [
@@ -244,62 +196,35 @@ def main():
         for config in gpu_configs
     ]
     # vocab_size = runtimes[0].model_rpc.model_config.vocab_size
-    router = DataParallelRequestRouter(
-        DataParallelRuntimeSelectionPolicy.CUSTOM,
-        total_nodes=NUM_GPUS,
-        custom_runtime_selector=EmpanadaScheduler(
-            num_nodes=NUM_GPUS,
-            enable_eviction=False,
-            enable_rebalancing=True,
-            enable_miss_rate=True,
-        ),
+    router = simulator_parameters.create_data_parallel_request_router(
+        simulator_parameters.accelerator_parameters.num_gpus
     )
-
-    console.log(server_args)
 
     # ==================== Setting Up Simulator ====================
     simulator = Simulation(runtimes, router)
     simulator.initialize_all_request_with_rps(
-        requests, REQUESTS_PER_SECOND, EXPERIMENT_TIME_SECONDS
+        requests,
+        simulator_parameters.requests_per_second,
+        simulator_parameters.experiment_time_seconds,
     )
     simulator.start_model_forwarding_loop()
 
     results = simulator.run()
 
-    console.log(results[0])
-    # console.log(results[1])
-    # console.log(results[2])
-    # console.log(results[3])
-
     # ==================== Processing Benchmarks ====================
     bench_metrics = BenchmarkMetrics.gen_benchmark_metrics(
         tokenizer=tokenizer,
         req_func_outputs=results,
-        overall_latency=EXPERIMENT_TIME_SECONDS,
-        time_limit=EXPERIMENT_TIME_SECONDS,
-        gpu_counts=NUM_GPUS,
+        overall_latency=simulator_parameters.experiment_time_seconds,
+        time_limit=simulator_parameters.experiment_time_seconds,
+        gpu_counts=simulator_parameters.accelerator_parameters.num_gpus,
     )
-
-    # ==================== Printing Results ====================
-    console.log(
-        render_scope(
-            {
-                "Model Name": MODEL_NAME,
-                "Number of Workloads": NUM_WORKLOADS,
-                "IDK what this is": 0,
-                "Number of Requests": num_requests,
-                "Requests per Second": REQUESTS_PER_SECOND,
-                "Experiment Time": EXPERIMENT_TIME_SECONDS,
-            },
-            title="Experiment Parameters",
-        )
-    )
-    console.log(bench_metrics)
-
-    run_data_analysis_suite(results)
 
     # bench_metrics.to_log_file(exp_params)
 
-
-if __name__ == "__main__":
-    main()
+    return SimulatorOutput(
+        requests=requests,
+        results=results,
+        benchmark_metrics=bench_metrics,
+        generated_server_args=server_args,
+    )

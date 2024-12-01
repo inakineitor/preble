@@ -58,7 +58,7 @@ class HighVarianceWorkloadPrefixDataLoader(DataLoader):
         if self.context_len:
             self.num_in_context_examples = math.ceil(self.context_len / 475)
 
-    def generate_workload(self, k: int):
+    def generate_workload(self):
         num_prefixed_shared = int(
             self.total_num_requests * (1 - self.distribution_of_non_shared)
         )
