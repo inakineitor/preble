@@ -26,10 +26,16 @@ from sglang.srt.managers.io_struct import (
     BatchTokenIDOut,
     FlushCacheReq,
     TokenizedGenerateReqInput,
-    SchedulingMetricsReqInput, 
-    SchedulingMetricsOut
+    SchedulingMetricsReqInput,
+    SchedulingMetricsOut,
 )
-from sglang.srt.managers.router.infer_batch import Batch, ForwardMode, Req, SchedulingBudget, FinishReason
+from sglang.srt.managers.router.infer_batch import (
+    Batch,
+    ForwardMode,
+    Req,
+    SchedulingBudget,
+    FinishReason,
+)
 from sglang.srt.managers.router.model_runner import ModelRunner
 from sglang.srt.managers.router.radix_cache import RadixCache
 from sglang.srt.managers.router.scheduler import Scheduler
@@ -50,6 +56,7 @@ vllm_default_logger.setLevel(logging.WARN)
 logging.getLogger("vllm.utils").setLevel(logging.WARN)
 
 detail_batch_logger = logger.debug
+
 
 class ModelRpcServer:
     def __init__(
@@ -89,7 +96,7 @@ class ModelRpcServer:
             "enable_flashinfer": server_args.enable_flashinfer,
             "attention_reduce_in_fp32": server_args.attention_reduce_in_fp32,
         }
-        
+
         self.model_runner = ModelRunner(
             model_config=self.model_config,
             mem_fraction_static=server_args.mem_fraction_static,
@@ -159,7 +166,7 @@ class ModelRpcServer:
         # Init running status
         self.forward_queue: List[Req] = []
         self.running_batch: Batch = None
-        self.delayed_batch : Batch = None
+        self.delayed_batch: Batch = None
         self.multi_priority_queue: List[List[Req]] = [[] for _ in range(10)]
         self.start_schedule_from = 9
 
@@ -192,14 +199,16 @@ class ModelRpcServer:
         self.log_prefix_hit = server_args.log_prefix_hit
         self.prefix_hit_trace = []
         if not self.gpu_config:
-            self.current_gpu = os.environ.get("CUDA_VISIBLE_DEVICES", "0").split(",")[torch.cuda.current_device()]
+            self.current_gpu = os.environ.get("CUDA_VISIBLE_DEVICES", "0").split(",")[
+                torch.cuda.current_device()
+            ]
         else:
             self.current_gpu = self.gpu_config.gpu_id + self.tp_rank
         self.total_scheduling_overhead = 0
         self.schedule_waiting_overhead = 0
         self.recomputed_tokens = 0
         self.total_forwarded_tokens = 0
-        
+
         self.total_cache_hit_tokens = 0
         self.iter_cnt = -1
 
@@ -220,23 +229,28 @@ class ModelRpcServer:
                 f"#queue-req: {len(self.forward_queue)}, "
                 f"#running-req: {0 if self.running_batch is None else len(self.running_batch.reqs)}"
             )
-    
+
     def num_waiting_reqs(self):
-        return len(self.forward_queue) + sum(len(pg) for pg in self.multi_priority_queue)
-    
+        return len(self.forward_queue) + sum(
+            len(pg) for pg in self.multi_priority_queue
+        )
+
     def update_hit_trace(self, timestamp, hit_tokens, total_prompt_len):
         self.hit_trace_buffer.append((timestamp, hit_tokens, total_prompt_len))
-        while self.hit_trace_buffer and timestamp - self.hit_trace_buffer[0][0] > self.hit_trace_window_size:
+        while (
+            self.hit_trace_buffer
+            and timestamp - self.hit_trace_buffer[0][0] > self.hit_trace_window_size
+        ):
             self.hit_trace_buffer.popleft()
-    
+
     def exposed_get_windowed_hit_ratio(self):
         return self.get_hit_ratio()
-    
+
     def get_hit_ratio(self):
         hit_tokens = sum(x[1] for x in self.hit_trace_buffer)
         total_prompt_len = sum(x[2] for x in self.hit_trace_buffer)
         return hit_tokens / total_prompt_len if total_prompt_len > 0 else 0
-            
+
     def waiting_queue_prefix_hit(self, s: SchedulingMetricsReqInput):
         max_pref_length = 0
         for req in self.forward_queue:
@@ -261,15 +275,23 @@ class ModelRpcServer:
         # max_prefix_match = max(len(prefix_indices), self.waiting_queue_prefix_hit(recv_req))
         max_prefix_match = len(prefix_indices)
         match_overhead = time.time() - start_time
-        average_waiting_queue_len = sum(self.forward_queue_len_buffer) / len(self.forward_queue_len_buffer) if len(self.forward_queue_len_buffer) > 0 else 0
-        average_running_batch_len = sum(self.running_batch_len_buffer) / len(self.running_batch_len_buffer) if len(self.running_batch_len_buffer) > 0 else 0     
+        average_waiting_queue_len = (
+            sum(self.forward_queue_len_buffer) / len(self.forward_queue_len_buffer)
+            if len(self.forward_queue_len_buffer) > 0
+            else 0
+        )
+        average_running_batch_len = (
+            sum(self.running_batch_len_buffer) / len(self.running_batch_len_buffer)
+            if len(self.running_batch_len_buffer) > 0
+            else 0
+        )
 
         out = SchedulingMetricsOut(
             rid=recv_req.rid,
             input_len=len(recv_req.input_ids),
             waiting_queue_len=average_waiting_queue_len,
             running_req_len=average_running_batch_len,
-            prefix_match_len= max_prefix_match,
+            prefix_match_len=max_prefix_match,
             token_kv_available_size=self.token_to_kv_pool.available_size(),
             evicatable_size=self.tree_cache.evictable_size(),
             tree_cache_metrics_hit=self.tree_cache_metrics["hit"],
@@ -310,7 +332,7 @@ class ModelRpcServer:
                 self.budget_forward_step()
             else:
                 self.forward_step()
-            
+
         except Exception:
             logger.error("Exception in ModelRpcClient:\n" + get_exception_traceback())
 
@@ -324,17 +346,14 @@ class ModelRpcServer:
         recv_req: TokenizedGenerateReqInput,
     ):
         return self.handle_finished_requests(recv_req)
-    
-    def _schedule_running(
-        self, 
-        budget: SchedulingBudget
-    ) -> Tuple[List[Req], Batch]:
+
+    def _schedule_running(self, budget: SchedulingBudget) -> Tuple[List[Req], Batch]:
         batch = self.running_batch
         if batch is None or batch.is_empty():
             return [], None
         current_running_idx = sorted(
             [i for i in range(len(batch.reqs))],
-            key=lambda i: (batch.reqs[i].arrival_time, len(batch.reqs[i].output_ids))
+            key=lambda i: (batch.reqs[i].arrival_time, len(batch.reqs[i].output_ids)),
         )
         req_pool_indices_cpu = batch.req_pool_indices.cpu().tolist()
         preempted = []
@@ -349,10 +368,19 @@ class ModelRpcServer:
             target_to_schedule = batch.reqs[target_idx]
             # 1. check required new memory and evict if needed
             # logger.debug(f'output_len: {len(target_to_schedule.output_ids)}, unfinished: {target_to_schedule.get_num_unfinished_tokens()}, budget: {budget.get_remaining_token_budget()}')
-            new_tokens = min(target_to_schedule.get_num_unfinished_tokens(), budget.get_remaining_token_budget())
-            if (batch.token_to_kv_pool.available_size() < new_tokens 
-                and not batch.tree_cache.disable):
-                batch.tree_cache.evict(new_tokens, batch.token_to_kv_pool.dec_refs, self.enable_iterative_eviction)
+            new_tokens = min(
+                target_to_schedule.get_num_unfinished_tokens(),
+                budget.get_remaining_token_budget(),
+            )
+            if (
+                batch.token_to_kv_pool.available_size() < new_tokens
+                and not batch.tree_cache.disable
+            ):
+                batch.tree_cache.evict(
+                    new_tokens,
+                    batch.token_to_kv_pool.dec_refs,
+                    self.enable_iterative_eviction,
+                )
             # 2. if not enough, evict running requests
             while batch.token_to_kv_pool.available_size() < new_tokens:
                 if not current_running_idx:
@@ -361,7 +389,7 @@ class ModelRpcServer:
                 else:
                     evict_idx = current_running_idx.pop()
                     evict_req = batch.reqs[evict_idx]
-                    
+
                 batch.tree_cache.dec_lock_ref(evict_req.last_node)
                 token_indices = batch.req_to_token_pool.req_to_token[
                     req_pool_indices_cpu[evict_idx]
@@ -369,40 +397,43 @@ class ModelRpcServer:
                 batch.token_to_kv_pool.dec_refs(token_indices)
                 batch.req_to_token_pool.free(req_pool_indices_cpu[evict_idx])
                 self.recomputed_tokens += len(evict_req.input_ids)
-                
+
                 evict_req.reset_state()
                 preempted.append(evict_req)
                 # not enought memory to schedule
                 if evict_idx == target_idx:
                     break
             else:
-            #3. schedule it, allocate and set workload
+                # 3. schedule it, allocate and set workload
                 budget.schedule_new_tokens(new_tokens)
                 scheduled.append(target_idx)
                 out_cache_loc = batch.token_to_kv_pool.alloc(new_tokens)
                 batch.req_to_token_pool.req_to_token[
                     req_pool_indices_cpu[target_idx],
-                    target_to_schedule.num_cached_tokens : target_to_schedule.num_cached_tokens + new_tokens
+                    target_to_schedule.num_cached_tokens : target_to_schedule.num_cached_tokens
+                    + new_tokens,
                 ] = out_cache_loc
                 target_to_schedule.num_inflight_tokens = new_tokens
                 out_cache_locs.append(out_cache_loc)
-        
+
         if current_running_idx:
             delayed_batch = batch.copy_from(current_running_idx)
         else:
             delayed_batch = None
-               
+
         if len(scheduled) < len(batch.reqs):
-            logger.debug(f'GPU: {self.current_gpu} preempted/delayed {len(batch.reqs) - len(scheduled)} requests')
+            logger.debug(
+                f"GPU: {self.current_gpu} preempted/delayed {len(batch.reqs) - len(scheduled)} requests"
+            )
             batch.filter_batch(scheduled)
-            
+
         # set out_cache_loc
         if not out_cache_locs:
             pass
         out_cache_locs = torch.cat(out_cache_locs, dim=0)
         batch.out_cache_loc = out_cache_locs
         batch.out_cache_cont_start = batch.out_cache_cont_end = None
-        
+
         batch.prepare_for_decode_v2()
         num_batched_tokens = batch.input_ids.shape[0]
         num_attention_tokens = batch.seq_lens.cpu().numpy().sum()
@@ -455,10 +486,10 @@ class ModelRpcServer:
                         req.image_size,
                     )
             self.forward_queue.extend(jump_forward_reqs)
-            
+
         if self.running_batch and not self.running_batch.is_empty():
             self.decode_forward_ct = (self.decode_forward_ct + 1) % (1 << 30)
-            
+
         if budget.get_remaining_token_budget() <= 0:
             scheduled_waiting_batch = None
         else:
@@ -467,7 +498,7 @@ class ModelRpcServer:
             # self.iter_cnt = (self.iter_cnt + 1) % 5
             # self.check_req_hit(self.forward_queue, self.iter_cnt != 0)
             self.check_req_hit(self.forward_queue, False)
-            if self.schedule_heuristic == 'fcfs-mpq':
+            if self.schedule_heuristic == "fcfs-mpq":
                 while self.forward_queue:
                     req = self.forward_queue.pop()
                     # Assign to the corresponding priority queue based on hit ratio
@@ -486,21 +517,41 @@ class ModelRpcServer:
                     max_schedule_allowed = (schedule_group_idx + 1) * k
 
                     # Get priority queue
-                    target_waiting_queue = self.scheduler.get_priority_queue(self.multi_priority_queue[schedule_group_idx])
+                    target_waiting_queue = self.scheduler.get_priority_queue(
+                        self.multi_priority_queue[schedule_group_idx]
+                    )
                     self.check_req_hit(target_waiting_queue)
-                    scheduled_waiting_batch = self.schedule_within_group(target_waiting_queue, max_schedule_allowed, budget)
+                    scheduled_waiting_batch = self.schedule_within_group(
+                        target_waiting_queue, max_schedule_allowed, budget
+                    )
                 if scheduled_waiting_batch is not None:
-                    self.multi_priority_queue[schedule_group_idx] = [x for x in target_waiting_queue if x not in scheduled_waiting_batch.reqs]
+                    self.multi_priority_queue[schedule_group_idx] = [
+                        x
+                        for x in target_waiting_queue
+                        if x not in scheduled_waiting_batch.reqs
+                    ]
             else:
-                self.forward_queue = self.scheduler.get_priority_queue(self.forward_queue)
+                self.forward_queue = self.scheduler.get_priority_queue(
+                    self.forward_queue
+                )
                 # scheduled_waiting_batch = self._schedule_waiting(budget)
-                scheduled_waiting_batch = self.schedule_within_group(self.forward_queue, self.max_num_running_seq, budget)
+                scheduled_waiting_batch = self.schedule_within_group(
+                    self.forward_queue, self.max_num_running_seq, budget
+                )
                 if scheduled_waiting_batch is not None:
-                    self.forward_queue = [x for x in self.forward_queue if x not in scheduled_waiting_batch.reqs]
+                    self.forward_queue = [
+                        x
+                        for x in self.forward_queue
+                        if x not in scheduled_waiting_batch.reqs
+                    ]
             self.schedule_waiting_overhead += time.time() - schedule_waiting_start
-        
+
         if scheduled_waiting_batch is not None:
-            scheduled_waiting_batch.prepare_for_extend_v2(self.model_config.vocab_size, self.int_token_logit_bias, self.enable_iterative_eviction)
+            scheduled_waiting_batch.prepare_for_extend_v2(
+                self.model_config.vocab_size,
+                self.int_token_logit_bias,
+                self.enable_iterative_eviction,
+            )
             if self.running_batch:
                 self.running_batch.concat(scheduled_waiting_batch)
             else:
@@ -530,7 +581,7 @@ class ModelRpcServer:
             len(req.prefix_indices) if req.prefix_indices is not None else 0
             for req in batch.reqs
         )
-        
+
         # self.running_batch.prepare_for_isolate_extend_decode()
         forward_time = 0
         if num_batched_tokens > 0:
@@ -547,28 +598,40 @@ class ModelRpcServer:
                     )
                     end_event.record()
                     self.iter_cnt += 1
-                    #print(f"Iter count: {self.iter_cnt}")
+                    # print(f"Iter count: {self.iter_cnt}")
                     next_token_ids, _ = batch.sample(logits)
                 else:
                     vocab_size = self.model_config.vocab_size
-                    logits = torch.ones((len(batch.reqs), vocab_size), dtype=torch.float16, device="cuda")
-                    next_token_ids = torch.ones((len(batch.reqs)), dtype=torch.int32, device="cuda")
-                    time.sleep(self.gpu_config.forward_simulation[0](
-                        len(batch.reqs),
-                        num_batched_tokens,
-                        num_attention_tokens,
-                        batch.input_id_lengths,
-                        unique_kvs,
-                        batch.seq_lens,
-                    ))
+                    logits = torch.ones(
+                        (len(batch.reqs), vocab_size),
+                        dtype=torch.float16,
+                        device="cuda",
+                    )
+                    next_token_ids = torch.ones(
+                        (len(batch.reqs)), dtype=torch.int32, device="cuda"
+                    )
+                    time.sleep(
+                        self.gpu_config.forward_simulation[0](
+                            len(batch.reqs),
+                            num_batched_tokens,
+                            num_attention_tokens,
+                            batch.input_id_lengths,
+                            unique_kvs,
+                            batch.seq_lens,
+                        )
+                    )
                     _ = batch.sample(logits)
                     last_logprobs = None
                 forward_time = time.time() - s
                 forward_time = forward_time
             else:
                 vocab_size = self.model_config.vocab_size
-                logits = torch.ones((len(batch.reqs), vocab_size), dtype=torch.float16, device="cuda")
-                next_token_ids = torch.ones((len(batch.reqs)), dtype=torch.int32, device="cuda")
+                logits = torch.ones(
+                    (len(batch.reqs), vocab_size), dtype=torch.float16, device="cuda"
+                )
+                next_token_ids = torch.ones(
+                    (len(batch.reqs)), dtype=torch.int32, device="cuda"
+                )
                 forward_time = forward_simulation[0](
                     len(batch.reqs),
                     num_batched_tokens,
@@ -584,8 +647,13 @@ class ModelRpcServer:
             next_token_ids = [self.tokenizer.eos_token_id] * len(batch.reqs)
             logits = last_logprobs = None
             start_event, end_event = None, None
-            
-        prefill_token_logprobs, normalized_prompt_logprobs, prefill_top_logprobs, decode_top_logprobs = None, None, None, None
+
+        (
+            prefill_token_logprobs,
+            normalized_prompt_logprobs,
+            prefill_top_logprobs,
+            decode_top_logprobs,
+        ) = (None, None, None, None)
         # Only batch transfer the selected logprobs of the next token to CPU to reduce overhead.
         reqs = batch.reqs
         if last_logprobs is not None:
@@ -632,7 +700,7 @@ class ModelRpcServer:
         self.handle_finished_requests(batch)
         if batch.is_empty():
             self.running_batch = None
-        
+
         model_forward_time = forward_time * 1000
         if not self.use_sleep_forwarding and forward_simulation is None:
             if start_event and end_event:
@@ -640,11 +708,9 @@ class ModelRpcServer:
                 model_forward_time = start_event.elapsed_time(end_event)
         if model_forward_time > 0:
             detail_batch_logger(
-                f'GPU: {self.current_gpu} '
-                f"forward time: {model_forward_time:.2f} ms"
+                f"GPU: {self.current_gpu} " f"forward time: {model_forward_time:.2f} ms"
             )
         return [forward_time]
-        
 
     @torch.inference_mode()
     def forward_step(self, forward_simulation=None, current_time=None):
@@ -652,7 +718,7 @@ class ModelRpcServer:
             self.current_time = time.time()
         else:
             self.current_time = current_time
-        if self.schedule_heuristic == 'fcfs-mpq':
+        if self.schedule_heuristic == "fcfs-mpq":
             new_batch = self.get_new_fill_batch_v2()
         else:
             new_batch = self.get_new_fill_batch()
@@ -674,7 +740,9 @@ class ModelRpcServer:
                 # Run a few decode batches continuously for reducing overhead
                 for _ in range(10):
                     self.num_generated_tokens += len(self.running_batch.reqs)
-                    forward_time = self.forward_decode_batch(self.running_batch, forward_simulation)
+                    forward_time = self.forward_decode_batch(
+                        self.running_batch, forward_simulation
+                    )
                     forward_times.append(forward_time)
                     if self.running_batch.is_empty():
                         self.running_batch = None
@@ -723,18 +791,22 @@ class ModelRpcServer:
                     total_forward_time += start.elapsed_time(end)
         if total_forward_time > 0:
             detail_batch_logger(
-                f'GPU: {self.current_gpu} '
-                f"forward time: {total_forward_time:.2f} ms"
+                f"GPU: {self.current_gpu} " f"forward time: {total_forward_time:.2f} ms"
             )
 
         return forward_times
-    
+
     def handle_generate_request(
         self,
         recv_req: TokenizedGenerateReqInput,
     ):
-        req = Req(recv_req.rid, recv_req.input_text, recv_req.input_ids, 
-                  recv_req.arrival_time, recv_req.append_to_queue_time)
+        req = Req(
+            recv_req.rid,
+            recv_req.input_text,
+            recv_req.input_ids,
+            recv_req.arrival_time,
+            recv_req.append_to_queue_time,
+        )
         req.pixel_values = recv_req.pixel_values
         if req.pixel_values is not None:
             req.pad_value = [
@@ -771,8 +843,8 @@ class ModelRpcServer:
         )
         self.forward_queue.append(req)
         return 0
-    
-    def check_req_hit(self, queue: List[Req], skip: bool=False):
+
+    def check_req_hit(self, queue: List[Req], skip: bool = False):
         if not skip:
             for req in queue:
                 prefix_indices, last_node = self.tree_cache.match_prefix(req.input_ids)
@@ -786,7 +858,7 @@ class ModelRpcServer:
                 req.extend_input_len = len(req.input_ids)
                 req.prefix_indices = []
                 req.last_node = self.tree_cache.root_node
-    
+
     def get_schedule_group(self):
         start_from = None
         while not self.multi_priority_queue[self.start_schedule_from]:
@@ -799,12 +871,12 @@ class ModelRpcServer:
             start_from = self.start_schedule_from
             self.start_schedule_from = (self.start_schedule_from + 9) % 10
             return start_from
-    
+
     def schedule_within_group(
-        self, 
-        target_waiting_queue: List[Req], 
+        self,
+        target_waiting_queue: List[Req],
         max_schedule_allowed: int,
-        budget: SchedulingBudget = None
+        budget: SchedulingBudget = None,
     ):
         # Add requests if there is available space
         can_run_list = []
@@ -844,7 +916,9 @@ class ModelRpcServer:
                 if req.image_offset is not None:
                     req.image_offset += 1
             if budget:
-                num_new_tokens = min(budget.get_remaining_token_budget(), req.extend_input_len)
+                num_new_tokens = min(
+                    budget.get_remaining_token_budget(), req.extend_input_len
+                )
             else:
                 num_new_tokens = req.extend_input_len
             if (
@@ -878,11 +952,11 @@ class ModelRpcServer:
                     total_batched_prompt_len += len(req.input_ids)
                     max_schedule_allowed -= 1
             elif self.schedule_heuristic == "fcfs-s":
-                    break
-            elif self.schedule_heuristic == 'fcfs-escape':
+                break
+            elif self.schedule_heuristic == "fcfs-escape":
                 if self.current_time - req.arrival_time >= 10:
                     break
-                    
+
         if len(can_run_list) == 0:
             return None
 
@@ -891,14 +965,14 @@ class ModelRpcServer:
                 0 if self.running_batch is None else len(self.running_batch.reqs)
             )
             hit_tokens = sum(len(x.prefix_indices) for x in can_run_list)
-            self.tree_cache_metrics["total"] += (
-                total_batched_prompt_len
-            ) / 10**9
+            self.tree_cache_metrics["total"] += (total_batched_prompt_len) / 10**9
             self.tree_cache_metrics["hit"] += hit_tokens / 10**9
             tree_cache_hit_rate = (
                 self.tree_cache_metrics["hit"] / self.tree_cache_metrics["total"]
             )
-            self.update_hit_trace(self.current_time, hit_tokens, total_batched_prompt_len)
+            self.update_hit_trace(
+                self.current_time, hit_tokens, total_batched_prompt_len
+            )
             # logger.info(
             #     f"GPU: {self.current_gpu} "
             #     f"new fill batch. #seq: {len(can_run_list)}. "
@@ -929,7 +1003,7 @@ class ModelRpcServer:
             self.tree_cache,
         )
         return new_batch
-    
+
     def get_new_fill_batch_v2(self):
         if (
             self.running_batch is not None
@@ -937,7 +1011,7 @@ class ModelRpcServer:
         ):
             return None
         schedule_waiting_start = time.time()
-                
+
         self.check_req_hit(self.forward_queue)
         while self.forward_queue:
             req = self.forward_queue.pop()
@@ -948,7 +1022,7 @@ class ModelRpcServer:
             else:
                 group = math.ceil(hit_ratio * 10) - 1
             self.multi_priority_queue[group].append(req)
-        
+
         schedule_group_idx = self.get_schedule_group()
         if schedule_group_idx is None:
             self.total_scheduling_overhead += time.time() - schedule_waiting_start
@@ -959,24 +1033,34 @@ class ModelRpcServer:
         max_schedule_allowed = (schedule_group_idx + 1) * k
 
         # Get priority queue
-        target_waiting_queue = self.scheduler.get_priority_queue(self.multi_priority_queue[schedule_group_idx])
+        target_waiting_queue = self.scheduler.get_priority_queue(
+            self.multi_priority_queue[schedule_group_idx]
+        )
         # NOTE: this is necessary
         # 1. hit ratio will shift over time
         # 2. if you set longer prefix indices the result is incorrect
         self.check_req_hit(target_waiting_queue)
-        new_batch = self.schedule_within_group(target_waiting_queue, max_schedule_allowed)
+        new_batch = self.schedule_within_group(
+            target_waiting_queue, max_schedule_allowed
+        )
         if new_batch is None:
             self.total_scheduling_overhead += time.time() - schedule_waiting_start
             self.schedule_waiting_overhead += time.time() - schedule_waiting_start
             return None
-        
-        self.multi_priority_queue[schedule_group_idx] = [x for x in target_waiting_queue if x not in new_batch.reqs]
+
+        self.multi_priority_queue[schedule_group_idx] = [
+            x for x in target_waiting_queue if x not in new_batch.reqs
+        ]
         if self.log_prefix_hit:
-            self.prefix_hit_trace.append({x.rid: [x.input_text[:20], len(x.prefix_indices)] for x in new_batch.reqs})
+            self.prefix_hit_trace.append(
+                {
+                    x.rid: [x.input_text[:20], len(x.prefix_indices)]
+                    for x in new_batch.reqs
+                }
+            )
         self.schedule_waiting_overhead += time.time() - schedule_waiting_start
         self.total_scheduling_overhead += time.time() - schedule_waiting_start
         return new_batch
-        
 
     def get_new_fill_batch(self):
         if (
@@ -991,26 +1075,35 @@ class ModelRpcServer:
         self.forward_queue = self.scheduler.get_priority_queue(self.forward_queue)
 
         # Add requests if there is available space
-        new_batch = self.schedule_within_group(self.forward_queue, self.max_num_running_seq)
+        new_batch = self.schedule_within_group(
+            self.forward_queue, self.max_num_running_seq
+        )
         if new_batch is None:
             self.total_scheduling_overhead += time.time() - schedule_waiting_start
             self.schedule_waiting_overhead += time.time() - schedule_waiting_start
             return None
         self.forward_queue = [x for x in self.forward_queue if x not in new_batch.reqs]
         if self.log_prefix_hit:
-            self.prefix_hit_trace.append({x.rid: [x.input_text[:20], len(x.prefix_indices)] for x in new_batch.reqs})
+            self.prefix_hit_trace.append(
+                {
+                    x.rid: [x.input_text[:20], len(x.prefix_indices)]
+                    for x in new_batch.reqs
+                }
+            )
         self.schedule_waiting_overhead += time.time() - schedule_waiting_start
         self.total_scheduling_overhead += time.time() - schedule_waiting_start
         return new_batch
-    
+
     def dump_prefix_hit_trace(self, path: str):
-        with open(path, 'w') as f:
-            json.dump(self.prefix_hit_trace, f)        
+        with open(path, "w") as f:
+            json.dump(self.prefix_hit_trace, f)
 
     def forward_fill_batch(self, batch: Batch, forward_simulation=None):
         # Build batch tensors
         batch.prepare_for_extend_v2(
-            self.model_config.vocab_size, self.int_token_logit_bias, self.enable_iterative_eviction
+            self.model_config.vocab_size,
+            self.int_token_logit_bias,
+            self.enable_iterative_eviction,
         )
 
         forward_time = 0
@@ -1064,25 +1157,43 @@ class ModelRpcServer:
 
                 else:
                     vocab_size = self.model_config.vocab_size
-                    logits = torch.ones((len(batch.reqs), vocab_size), dtype=torch.float16, device="cuda")
-                    next_token_ids = torch.ones((len(batch.reqs)), dtype=torch.int32, device="cuda")
-                    time.sleep(self.gpu_config.forward_simulation[0](
-                        len(batch.reqs),
-                        num_batched_tokens,
-                        num_attention_tokens,
-                        batch.input_id_lengths,
-                        unique_kvs,
-                        batch.seq_lens,
-                    ))
+                    logits = torch.ones(
+                        (len(batch.reqs), vocab_size),
+                        dtype=torch.float16,
+                        device="cuda",
+                    )
+                    next_token_ids = torch.ones(
+                        (len(batch.reqs)), dtype=torch.int32, device="cuda"
+                    )
+                    time.sleep(
+                        self.gpu_config.forward_simulation[0](
+                            len(batch.reqs),
+                            num_batched_tokens,
+                            num_attention_tokens,
+                            batch.input_id_lengths,
+                            unique_kvs,
+                            batch.seq_lens,
+                        )
+                    )
                     _ = batch.sample(logits)
-                    prefill_token_logprobs, normalized_prompt_logprobs, prefill_top_logprobs, decode_top_logprobs, last_logprobs = None, None, None, None, None
+                    (
+                        prefill_token_logprobs,
+                        normalized_prompt_logprobs,
+                        prefill_top_logprobs,
+                        decode_top_logprobs,
+                        last_logprobs,
+                    ) = (None, None, None, None, None)
                 end_event.record()
                 forward_time = time.time() - s
                 forward_time = forward_time
             else:
                 vocab_size = self.model_config.vocab_size
-                logits = torch.ones((len(batch.reqs), vocab_size), dtype=torch.float16, device="cuda")
-                next_token_ids = torch.ones((len(batch.reqs)), dtype=torch.int32, device="cuda")
+                logits = torch.ones(
+                    (len(batch.reqs), vocab_size), dtype=torch.float16, device="cuda"
+                )
+                next_token_ids = torch.ones(
+                    (len(batch.reqs)), dtype=torch.int32, device="cuda"
+                )
                 forward_time = forward_simulation[0](
                     len(batch.reqs),
                     num_batched_tokens,
@@ -1092,11 +1203,23 @@ class ModelRpcServer:
                     batch.seq_lens,
                 )
                 _ = batch.sample(logits)
-                prefill_token_logprobs, normalized_prompt_logprobs, prefill_top_logprobs, decode_top_logprobs, last_logprobs = None, None, None, None, None
+                (
+                    prefill_token_logprobs,
+                    normalized_prompt_logprobs,
+                    prefill_top_logprobs,
+                    decode_top_logprobs,
+                    last_logprobs,
+                ) = (None, None, None, None, None)
             next_token_ids = next_token_ids.tolist()
         else:
             next_token_ids = [self.tokenizer.eos_token_id] * len(batch.reqs)
-            prefill_token_logprobs, normalized_prompt_logprobs, prefill_top_logprobs, decode_top_logprobs, last_logprobs = None, None, None, None, None
+            (
+                prefill_token_logprobs,
+                normalized_prompt_logprobs,
+                prefill_top_logprobs,
+                decode_top_logprobs,
+                last_logprobs,
+            ) = (None, None, None, None, None)
             start_event, end_event = None, None
 
         # Only batch transfer the selected logprobs of the next token to CPU to reduce overhead.
@@ -1147,13 +1270,13 @@ class ModelRpcServer:
         if forward_simulation is None:
             return start_event, end_event
         return forward_time
-    
+
     def test_extend_decode(self, batch: Batch, forward_simulation=None):
         budget = SchedulingBudget(self.max_num_running_seq, 0)
         preempted, delayed_batch = self._schedule_running(budget)
         assert delayed_batch is None
         self.forward_queue.extend(preempted)
-        
+
         num_batched_tokens = batch.input_ids.shape[0]
         num_attention_tokens = batch.seq_lens.cpu().numpy().sum()
         unique_kvs = self.tree_cache.total_unique_kv_tokens(batch.reqs)
@@ -1182,27 +1305,34 @@ class ModelRpcServer:
                 next_token_ids, _ = batch.sample(logits)
             else:
                 vocab_size = self.model_config.vocab_size
-                logits = torch.ones((len(batch.reqs), vocab_size), dtype=torch.float16, device="cuda")
-                next_token_ids = torch.ones((len(batch.reqs)), dtype=torch.int32, device="cuda")
-                time.sleep(self.gpu_config.forward_simulation[1](
-                    len(batch.reqs),
-                    num_batched_tokens,
-                    num_attention_tokens,
-                    unique_kvs
-                ))
+                logits = torch.ones(
+                    (len(batch.reqs), vocab_size), dtype=torch.float16, device="cuda"
+                )
+                next_token_ids = torch.ones(
+                    (len(batch.reqs)), dtype=torch.int32, device="cuda"
+                )
+                time.sleep(
+                    self.gpu_config.forward_simulation[1](
+                        len(batch.reqs),
+                        num_batched_tokens,
+                        num_attention_tokens,
+                        unique_kvs,
+                    )
+                )
                 _ = batch.sample(logits)
                 last_logprobs = None
             forward_time = time.time() - s
             forward_time = forward_time
         else:
             vocab_size = self.model_config.vocab_size
-            logits = torch.ones((len(batch.reqs), vocab_size), dtype=torch.float16, device="cuda")
-            next_token_ids = torch.ones((len(batch.reqs)), dtype=torch.int32, device="cuda")
+            logits = torch.ones(
+                (len(batch.reqs), vocab_size), dtype=torch.float16, device="cuda"
+            )
+            next_token_ids = torch.ones(
+                (len(batch.reqs)), dtype=torch.int32, device="cuda"
+            )
             forward_time = forward_simulation[1](
-                len(batch.reqs),
-                num_batched_tokens,
-                num_attention_tokens,
-                unique_kvs
+                len(batch.reqs), num_batched_tokens, num_attention_tokens, unique_kvs
             )
             _ = batch.sample(logits)
             last_logprobs = None
@@ -1232,7 +1362,7 @@ class ModelRpcServer:
         if forward_simulation is None:
             return start_event, end_event
         return forward_time
-    
+
     def cache_filled_batch(self, batch: Batch):
         req_pool_indices_cpu = batch.req_pool_indices.cpu().tolist()
         for i, req in enumerate(batch.reqs):
@@ -1310,7 +1440,7 @@ class ModelRpcServer:
             )
         self.total_forwarded_tokens += num_batched_tokens
         self.total_scheduling_overhead += time.time() - start_decoding_schedule
-        
+
         forward_time = 0
         # Forward
         if forward_simulation is None:
@@ -1319,7 +1449,7 @@ class ModelRpcServer:
             if not self.use_sleep_forwarding:
                 start_event = torch.cuda.Event(enable_timing=True)
                 end_event = torch.cuda.Event(enable_timing=True)
-                start_event.record()        
+                start_event.record()
                 logits, (
                     _,
                     _,
@@ -1328,32 +1458,39 @@ class ModelRpcServer:
                     last_logprobs,
                 ) = self.model_runner.forward(batch, ForwardMode.DECODE)
                 self.iter_cnt += 1
-                #print(f"Iter count: {self.iter_cnt}")
+                # print(f"Iter count: {self.iter_cnt}")
                 end_event.record()
                 next_token_ids, _ = batch.sample(logits)
             else:
                 vocab_size = self.model_config.vocab_size
-                logits = torch.ones((len(batch.reqs), vocab_size), dtype=torch.float16, device="cuda")
-                next_token_ids = torch.ones((len(batch.reqs)), dtype=torch.int32, device="cuda")
-                time.sleep(self.gpu_config.forward_simulation[1](
-                    len(batch.reqs),
-                    num_batched_tokens,
-                    num_attention_tokens,
-                    unique_kvs
-                ))   
+                logits = torch.ones(
+                    (len(batch.reqs), vocab_size), dtype=torch.float16, device="cuda"
+                )
+                next_token_ids = torch.ones(
+                    (len(batch.reqs)), dtype=torch.int32, device="cuda"
+                )
+                time.sleep(
+                    self.gpu_config.forward_simulation[1](
+                        len(batch.reqs),
+                        num_batched_tokens,
+                        num_attention_tokens,
+                        unique_kvs,
+                    )
+                )
                 _ = batch.sample(logits)
                 decode_top_logprobs, last_logprobs = None, None
             forward_time = time.time() - s
             forward_time = forward_time
         else:
             vocab_size = self.model_config.vocab_size
-            logits = torch.ones((len(batch.reqs), vocab_size), dtype=torch.float16, device="cuda")
-            next_token_ids = torch.ones((len(batch.reqs)), dtype=torch.int32, device="cuda")
+            logits = torch.ones(
+                (len(batch.reqs), vocab_size), dtype=torch.float16, device="cuda"
+            )
+            next_token_ids = torch.ones(
+                (len(batch.reqs)), dtype=torch.int32, device="cuda"
+            )
             forward_time = forward_simulation[1](
-                len(batch.reqs),
-                num_batched_tokens,
-                num_attention_tokens,
-                unique_kvs
+                len(batch.reqs), num_batched_tokens, num_attention_tokens, unique_kvs
             )
             _ = batch.sample(logits)
             decode_top_logprobs, last_logprobs = None, None
@@ -1374,7 +1511,9 @@ class ModelRpcServer:
                 req.check_finished()
 
                 if req.return_logprob:
-                    req.decode_token_logprobs.append((new_token_logprobs[i], next_tok_id))
+                    req.decode_token_logprobs.append(
+                        (new_token_logprobs[i], next_tok_id)
+                    )
 
                 if req.top_logprobs_num > 0:
                     req.decode_top_logprobs.append(decode_top_logprobs[i])
@@ -1454,7 +1593,7 @@ class ModelRpcServer:
 
         # Send to detokenizer
         if output_rids:
-            logger.debug(f'finished reqs: {len(output_rids)}')
+            logger.debug(f"finished reqs: {len(output_rids)}")
             self.out_pyobjs.append(
                 BatchTokenIDOut(
                     output_rids,
@@ -1495,7 +1634,11 @@ class ModelRpcService(rpyc.Service):
 
 class ModelRpcClient:
     def __init__(
-        self, server_args: ServerArgs, port_args: PortArgs, model_overide_args, gpu_config: GPUConfig,
+        self,
+        server_args: ServerArgs,
+        port_args: PortArgs,
+        model_overide_args,
+        gpu_config: GPUConfig,
     ):
         tp_size = server_args.tp_size
         self.gpu_config = gpu_config
@@ -1519,13 +1662,19 @@ class ModelRpcClient:
                 return _func
 
             self.step = async_wrap(self.model_server.exposed_step)
-            self.get_windowed_hit_ratio = async_wrap(self.model_server.exposed_get_windowed_hit_ratio)
+            self.get_windowed_hit_ratio = async_wrap(
+                self.model_server.exposed_get_windowed_hit_ratio
+            )
             self.push_req_step = async_wrap(self.model_server.handle_generate_request)
-            self.get_migrate_candidates = async_wrap(self.model_server.exposed_get_migration_candidates)
+            self.get_migrate_candidates = async_wrap(
+                self.model_server.exposed_get_migration_candidates
+            )
             self.scheduler_metrics_request = async_wrap(
                 self.model_server.exposed_scheduler_metrics_request
             )
-            self.dump_prefix_hit_trace = async_wrap(self.model_server.dump_prefix_hit_trace)
+            self.dump_prefix_hit_trace = async_wrap(
+                self.model_server.dump_prefix_hit_trace
+            )
         else:
             with ThreadPoolExecutor(tp_size) as executor:
                 # Launch model processes
@@ -1541,14 +1690,17 @@ class ModelRpcClient:
 
                 ret = executor.map(init_model, range(tp_size))
                 self.model_servers = [x for x in ret]
+
             # Wrap functions
             def async_wrap(func_name):
                 fs = [rpyc.async_(getattr(m, func_name)) for m in self.model_servers]
                 print(func_name, len(fs))
+
                 async def _func(*args, **kwargs):
                     tasks = [f(*args, **kwargs) for f in fs]
                     await asyncio.gather(*[asyncio.to_thread(t.wait) for t in tasks])
                     return obtain(tasks[0].value)
+
                 return _func
 
             self.step = async_wrap("step")
@@ -1556,9 +1708,9 @@ class ModelRpcClient:
             # TODO: test push_req_step in TP mode
             self.push_req_step = async_wrap("handle_generate_request")
             self.scheduler_metrics_request = async_wrap(
-                'exposed_scheduler_metrics_request'
-            ) # TODO test metric collection in TP mode
-    
+                "exposed_scheduler_metrics_request"
+            )  # TODO test metric collection in TP mode
+
 
 def _init_service(port):
     t = ThreadedServer(

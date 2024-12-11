@@ -2,7 +2,8 @@ from typing import Any, Callable, List, Optional, Union
 import uuid
 import logging
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+import hashlib
 
 from transformers import AutoTokenizer
 import numpy as np
@@ -102,28 +103,56 @@ def create_simulator_args(
     return profile_mode, server_args
 
 
-@dataclass
+@dataclass(eq=True, frozen=True)
 class AcceleratorParameters:
     num_gpus: int
     kv_cache_memory: int  # number of bytes
     forward_simulation_extend: Callable[
         [int, int, int, list[int], Optional[int], Optional[torch.Tensor]], float
-    ]
-    forward_simulation_decode: Callable[[int, int, int, Optional[int]], float]
+    ] = field(compare=False, hash=False)
+    forward_simulation_decode: Callable[[int, int, int, Optional[int]], float] = field(
+        compare=False, hash=False
+    )
 
 
-@dataclass
+@dataclass(eq=True, frozen=True)
 class SimulatorParameters:
     accelerator_parameters: AcceleratorParameters
-    create_data_parallel_request_router: Callable[
-        [int], DataParallelRequestRouter
-    ]  # (num_gpus: int) -> DataParallelRequestRouter
+    create_data_parallel_request_router: Callable[[int], DataParallelRequestRouter] = (
+        field(hash=False)
+    )  # (num_gpus: int) -> DataParallelRequestRouter
     create_data_loader: Callable[
-        [int, Any], DataLoader
-    ]  # (num_requests: int, tokenizer: Any) -> DataLoader
+        [int, int, int, list[tuple[float, int]], Any], DataLoader
+    ] = field(hash=False)
+    # (
+    #   num_workloads: int,
+    #   num_requests: int,
+    #   num_in_context_examples: int,
+    #   output_length_distribution: list[tuple[float, int]],
+    #   tokenizer: Any,
+    # ) -> DataLoader
     requests_per_second: float
+    num_workloads: int
+    num_in_context_examples: int
+    output_length_distribution: list[tuple[float, int]] = field(hash=False)
     experiment_time_seconds: int
     model_name: str
+
+    def __hash__(self) -> int:
+        return hash(
+            (
+                self.accelerator_parameters,
+                self.requests_per_second,
+                self.num_workloads,
+                self.num_in_context_examples,
+                self.experiment_time_seconds,
+                tuple(self.output_length_distribution),
+                int.from_bytes(
+                    hashlib.sha256(self.model_name.encode("utf-8")).digest(),
+                    "big",  # strings in python get salted by default hash so we must use stable cryptographic hash
+                ),
+            )
+        )
 
 
 def create_gpu(
@@ -179,8 +208,13 @@ def run_simulator(simulator_parameters: SimulatorParameters) -> SimulatorOutput:
     tokenizer = AutoTokenizer.from_pretrained(simulator_parameters.model_name)
 
     # ==================== Computed Dataloader Parameters ====================
-    # NOTE: Original data loader
-    dataloader = simulator_parameters.create_data_loader(num_requests, tokenizer)
+    dataloader = simulator_parameters.create_data_loader(
+        simulator_parameters.num_workloads,
+        num_requests,
+        simulator_parameters.num_in_context_examples,
+        simulator_parameters.output_length_distribution,
+        tokenizer,
+    )
     requests = dataloader.generate_workload()
 
     # ==================== Computed Accelerator Parameters ====================

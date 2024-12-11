@@ -241,7 +241,10 @@ class BenchmarkMetrics:
             and result.success
         ]
         average_finished_tpot = np.average(finished_tpot)
-        p50_tpot, p90_tpot, p99_tpot = np.percentile(tpots, [50, 90, 99])
+
+        p50_tpot, p90_tpot, p99_tpot = float("nan"), float("nan"), float("nan")
+        if len(tpots) >= 1:
+            p50_tpot, p90_tpot, p99_tpot = np.percentile(tpots, [50, 90, 99])
 
         prefill_decode_ratio = [
             result.prefill_decode_ratio
@@ -254,17 +257,32 @@ class BenchmarkMetrics:
             for result in req_func_outputs
             if result.success and result.global_time <= time_limit
         ]
+
         average_request_latency, std_request_latency, average_p90 = (
-            np.mean(finished_request_latencies),
-            np.std(finished_request_latencies),
-            np.percentile(finished_request_latencies, 90),
+            float("nan"),
+            float("nan"),
+            float("nan"),
         )
-        max_latency = np.max(finished_request_latencies)
-        p50_latency, p90_latency, p99_latency = np.percentile(
-            finished_request_latencies, [50, 90, 99]
-        )
-        average_ttft = np.mean(ttfts)
-        average_topt = np.mean(tpots)
+        if len(finished_request_latencies) >= 1:
+            average_request_latency, std_request_latency, average_p90 = (
+                np.mean(finished_request_latencies),
+                np.std(finished_request_latencies),
+                np.percentile(finished_request_latencies, 90),
+            )
+
+        max_latency = float("nan")
+        if len(finished_request_latencies) >= 1:
+            max_latency = np.max(finished_request_latencies)
+
+        p50_latency, p90_latency, p99_latency = float("nan"), float("nan"), float("nan")
+        if len(finished_request_latencies) >= 1:
+            p50_latency, p90_latency, p99_latency = np.percentile(
+                finished_request_latencies, [50, 90, 99]
+            )
+
+        average_ttft = float("nan") if len(ttfts) == 0 else np.mean(ttfts)
+        average_topt = float("nan") if len(tpots) == 0 else np.mean(tpots)
+
         requests_per_sec = (
             len([req for req in req_func_outputs if req.success]) / overall_latency
         )
@@ -275,14 +293,24 @@ class BenchmarkMetrics:
         max_scheduling_overhead = np.max(
             [result.scheduling_overhead for result in req_func_outputs]
         )
-        p50_ttft, pt90_ttft, p99_ttft = (
-            np.percentile(ttfts, 50),
-            np.percentile(ttfts, 90),
-            np.percentile(ttfts, 99),
+        p50_ttft, pt90_ttft, p99_ttft = float("nan"), float("nan"), float("nan")
+        if len(ttfts) >= 1:
+            p50_ttft, pt90_ttft, p99_ttft = (
+                np.percentile(ttfts, 50),
+                np.percentile(ttfts, 90),
+                np.percentile(ttfts, 99),
+            )
+
+        p50_norm_latency, p90_norm_latency, p99_norm_latency = (
+            float("nan"),
+            float("nan"),
+            float("nan"),
         )
-        p50_norm_latency, p90_norm_latency, p99_norm_latency = np.percentile(
-            norm_request_latencies, [50, 90, 99]
-        )
+        if len(norm_request_latencies) >= 1:
+            p50_norm_latency, p90_norm_latency, p99_norm_latency = np.percentile(
+                norm_request_latencies, [50, 90, 99]
+            )
+
         mean_norm_latency = np.mean(norm_request_latencies)
 
         return BenchmarkMetrics(
