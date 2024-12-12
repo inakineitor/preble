@@ -185,6 +185,7 @@ datasets/
 *.csv
 
 
+# ================== Training BERT ==================
 # datasets
 chameleon-llm
 ToolQA
@@ -192,7 +193,12 @@ CREATOR
 apibench_data
 ToolAlpaca
 
-# personnal
+# personal
 work_dirs/
 
 *.experiment_output
+=======
+*.out
+*.safetensors
+*.pt
+*.pth
