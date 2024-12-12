@@ -109,6 +109,7 @@ def num_gpus_facet_avg_norm_latency_vs_rps(
     plt.tight_layout()
 
     # Show the plots
+    plt.savefig("num-gpus-facet-avg-norm-latency-vs-rps.pdf")
     plt.show()
 
 
@@ -198,6 +199,7 @@ def num_gpus_facet_overhead_vs_rps(
     plt.tight_layout()
 
     # Show the plots
+    plt.savefig("num_gpus_facet_overhead_vs_rps.pdf")
     plt.show()
 
 
@@ -286,7 +288,7 @@ def rps_facet_avg_norm_latency_vs_num_gpus(
 
 
 # PLOT: The facet is the number of GPUs. The x-axis is the the variance of the distribution and the y-axis is the average normalized latency.
-def num_gpus_facet_avg_norm_latency_vs_output_length_variance(
+def rps_num_gpus_facet_avg_norm_latency_vs_output_length_variance(
     subexperiment_outputs: list[
         tuple[
             SubexperimentParams,
@@ -309,12 +311,12 @@ def num_gpus_facet_avg_norm_latency_vs_output_length_variance(
 
     num_vertical_facets = len(vertically_grouped_facets)
     num_horizontal_facets = (
-        len(vertically_grouped_facets[0][1][1]) if num_vertical_facets >= 1 else 0
+        len(vertically_grouped_facets[0][1]) if num_vertical_facets >= 1 else 0
     )
 
     # Create a figure and three axes
     _, axes = plt.subplots(
-        num_vertical_facets, num_horizontal_facets, figsize=(8, 12), squeeze=False
+        num_vertical_facets, num_horizontal_facets, figsize=(12, 12), squeeze=False
     )
 
     for vertical_axes_idx, (_, horizontal_facets) in enumerate(
@@ -395,4 +397,106 @@ def num_gpus_facet_avg_norm_latency_vs_output_length_variance(
     plt.tight_layout()
 
     # Show the plots
+    plt.savefig("num-gpus-facet-avg-norm-latency-vs-output-length-variance.pdf")
+    plt.show()
+
+
+def rps_num_gpus_facet_avg_norm_latency_vs_num_workloads(
+    subexperiment_outputs: list[
+        tuple[
+            SubexperimentParams,
+            list[SimulatorOutput],
+        ],
+    ],
+):
+    facets = [
+        (facet_id, list(group))
+        for (facet_id, group) in unsorted_groupby(
+            subexperiment_outputs,
+            lambda output: (output[0]["requests_per_second"], output[0]["num_gpus"]),
+        )
+    ]  # Manual conversion to list is required because list() conversion consumes grouper and they appear empty later on
+
+    vertically_grouped_facets = [
+        (facet_id, list(group))
+        for (facet_id, group) in unsorted_groupby(facets, lambda facet: facet[0][0])
+    ]  # Manual conversion to list is required because list() conversion consumes grouper and they appear empty later on
+
+    num_vertical_facets = len(vertically_grouped_facets)
+    num_horizontal_facets = (
+        len(vertically_grouped_facets[0][1]) if num_vertical_facets >= 1 else 0
+    )
+
+    # Create a figure and three axes
+    _, axes = plt.subplots(
+        num_vertical_facets, num_horizontal_facets, figsize=(12, 12), squeeze=False
+    )
+
+    for vertical_axes_idx, (_, horizontal_facets) in enumerate(
+        vertically_grouped_facets
+    ):
+        for horizontal_axes_idx, ((rps, num_gpus), outputs) in enumerate(
+            horizontal_facets
+        ):
+            ax = axes[vertical_axes_idx][horizontal_axes_idx]
+            ax.set_title(f"{num_gpus} GPUs with {rps} Req/s")
+            ax.set_xlabel("Number of ReAct Workloads")
+            ax.set_ylabel("Average Normalized Latency")
+            ax.grid(True)
+            plots = []
+            for router_name, router_outputs in unsorted_groupby(
+                outputs, lambda output: output[0]["router_name"]
+            ):
+                num_workloads_list = []
+                avg_norm_latency_upper_list = []
+                avg_norm_latency_mean_list = []
+                avg_norm_latency_lower_list = []
+                for parameters, simulator_outputs in sorted(
+                    router_outputs, key=lambda o: o[0]["num_workloads"]
+                ):
+                    num_workloads = parameters["num_workloads"]
+                    num_workloads_list.append(num_workloads)
+
+                    avg_norm_latencies = [
+                        o.benchmark_metrics.avg_norm_latency for o in simulator_outputs
+                    ]
+                    avg_norm_latency_mean_list.append(np.mean(avg_norm_latencies))
+                    avg_norm_latency_lower_list.append(
+                        np.percentile(
+                            avg_norm_latencies, 16
+                        )  # Assuming normal dist. one std deviation below mean
+                    )
+                    avg_norm_latency_upper_list.append(
+                        np.percentile(
+                            avg_norm_latencies, 84
+                        )  # Assuming normal dist. one std deviation above mean
+                    )
+
+                line_plot = ax.plot(
+                    num_workloads_list,
+                    avg_norm_latency_mean_list,
+                    label=router_name,
+                    linestyle="--",
+                    marker="o",
+                )
+                fill_between_plot = ax.fill_between(
+                    num_workloads_list,
+                    avg_norm_latency_lower_list,
+                    avg_norm_latency_upper_list,
+                    alpha=0.5,
+                    label=router_name,
+                )
+                plots.append((line_plot, fill_between_plot))
+
+            ax.legend(
+                handles=[(p[0][0], p[1]) for p in plots],
+                labels=[plot[0].get_label() for (plot, _) in plots],
+                handleheight=2,
+            )
+
+    # Adjust layout to prevent overlap
+    plt.tight_layout()
+
+    # Show the plots
+    plt.savefig("rps-num-gpus-facet-avg-norm-latency-vs-num-workloads.pdf")
     plt.show()

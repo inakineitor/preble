@@ -31,7 +31,8 @@ from empanada.scheduler.empanada_scheduler import EmpanadaScheduler
 from empanada.scripts.experiments.utils.plotting import (
     num_gpus_facet_avg_norm_latency_vs_rps,
     num_gpus_facet_overhead_vs_rps,
-    num_gpus_facet_avg_norm_latency_vs_output_length_variance,
+    rps_num_gpus_facet_avg_norm_latency_vs_num_workloads,
+    rps_num_gpus_facet_avg_norm_latency_vs_output_length_variance,
     rps_facet_avg_norm_latency_vs_num_gpus,
 )
 
@@ -100,9 +101,10 @@ EMPANADA_SCHEDULER = (
 # ==================== Caches ====================
 
 # CACHE: Works for finding the best performing naive method to later compare. This is for findind X
+# NOTE: Run.
 # NUM_WORKLOADS_OPTIONS = [10]
 # NUM_IN_CONTEXT_EXAMPLES_OPTIONS = [4]
-# OUTPUT_LENGTH_DISTRIBUTION_OPTIONS = [[(1.0, 150)], [(0.5, 1), (0.5, 300)]]
+# OUTPUT_LENGTH_DISTRIBUTION_OPTIONS = [[(1.0, 150)]]
 # NUM_GPUS_OPTIONS = [2**2, 2**3, 2**4]
 # REQUESTS_PER_SECOND_OPTIONS = [2**0, 2**1, 2**2, 2**3, 2**4, 2**5, 2**6, 2**7]
 # CREATE_ROUTER_OPTIONS = [
@@ -111,20 +113,20 @@ EMPANADA_SCHEDULER = (
 #     LEAST_OUTSTANDING_REQUESTS_SCHEDULER,
 #     PREBLE_SCHEDULER,
 # ]
-# DATA_ANALYZER = num_gpu_facet_avg_norm_latency_vs_rps
+# DATA_ANALYZER = num_gpus_facet_avg_norm_latency_vs_rps
 
 # CACHE: For showing that Preble does not run better than X for high RPS across workloads
 # FIX: Run. Plot must be changed.
-NUM_WORKLOADS_OPTIONS = [1, 5, 10]
-NUM_IN_CONTEXT_EXAMPLES_OPTIONS = [4]
-OUTPUT_LENGTH_DISTRIBUTION_OPTIONS = [[(1.0, 150)]]
-NUM_GPUS_OPTIONS = [2**2, 2**3, 2**4]
-REQUESTS_PER_SECOND_OPTIONS = [2**5, 2**6, 2**7]
-CREATE_ROUTER_OPTIONS = [LEAST_OUTSTANDING_REQUESTS_SCHEDULER, PREBLE_SCHEDULER]
-DATA_ANALYZER = num_gpus_facet_avg_norm_latency_vs_rps
+# NUM_WORKLOADS_OPTIONS = [1, 5, 10]
+# NUM_IN_CONTEXT_EXAMPLES_OPTIONS = [4]
+# OUTPUT_LENGTH_DISTRIBUTION_OPTIONS = [[(1.0, 150)]]
+# NUM_GPUS_OPTIONS = [2**2, 2**3, 2**4]
+# REQUESTS_PER_SECOND_OPTIONS = [2**5, 2**6, 2**7]
+# CREATE_ROUTER_OPTIONS = [LEAST_OUTSTANDING_REQUESTS_SCHEDULER, PREBLE_SCHEDULER]
+# DATA_ANALYZER = rps_num_gpus_facet_avg_norm_latency_vs_num_workloads
 
-# CACHE: For showing that Preble gets worse as as the number of GPUs increase. Test with generally high RPS.
-# HACK: Run. Suboptimal plot.
+# CACHE: For showing that Preble average normalized latency gets worse as as the number of GPUs increase. Test with generally high RPS.
+# NOTE: Run.
 # PLOT: Each facet is the number of GPUs and within each facet the the x-axis is the RPS and the y-axis is the average normalized latency.
 # NUM_WORKLOADS_OPTIONS = [10]
 # NUM_IN_CONTEXT_EXAMPLES_OPTIONS = [4]
@@ -132,11 +134,11 @@ DATA_ANALYZER = num_gpus_facet_avg_norm_latency_vs_rps
 # NUM_GPUS_OPTIONS = [2**2, 2**3, 2**4]
 # REQUESTS_PER_SECOND_OPTIONS = [2**3, 2**4, 2**5, 2**6, 2**7]
 # CREATE_ROUTER_OPTIONS = [LEAST_OUTSTANDING_REQUESTS_SCHEDULER, PREBLE_SCHEDULER]
-# DATA_ANALYZER = num_gpus_facet_overhead_vs_rps
+# DATA_ANALYZER = num_gpus_facet_avg_norm_latency_vs_rps
 
-# CACHE: For showing that Preble gets worse as as the number of GPUs increase. Test with generally high RPS.
-# NOTE: Run. Best plot.
-# PLOT: Each facet is the number of GPUs and within each facet the the x-axis is the RPS and the y-axis is the average normalized latency.
+# CACHE: For showing that Preble overhead gets worse as as the number of GPUs increase. Test with generally high RPS.
+# NOTE: Run.
+# PLOT: Each facet is the number of GPUs and within each facet the the x-axis is the RPS and the y-axis is the average scheduling overhead.
 # NUM_WORKLOADS_OPTIONS = [10]
 # NUM_IN_CONTEXT_EXAMPLES_OPTIONS = [4]
 # OUTPUT_LENGTH_DISTRIBUTION_OPTIONS = [[(1.0, 150)]]
@@ -146,7 +148,7 @@ DATA_ANALYZER = num_gpus_facet_avg_norm_latency_vs_rps
 # DATA_ANALYZER = num_gpus_facet_overhead_vs_rps
 
 # CACHE: For showing that length distributions adversely affect Preble
-# NOTE: Run
+# HACK: Run. Suboptimal plot.
 # PLOT: The facet is the number of GPUs. The x-axis is the the variance of the distribution and the y-axis is the average normalized latency.
 # NUM_WORKLOADS_OPTIONS = [10]
 # NUM_IN_CONTEXT_EXAMPLES_OPTIONS = [4]
@@ -158,28 +160,28 @@ DATA_ANALYZER = num_gpus_facet_avg_norm_latency_vs_rps
 # NUM_GPUS_OPTIONS = [2**3, 2**4]
 # REQUESTS_PER_SECOND_OPTIONS = [2**3, 2**4, 2**5, 2**6]
 # CREATE_ROUTER_OPTIONS = [LEAST_OUTSTANDING_REQUESTS_SCHEDULER, PREBLE_SCHEDULER]
-# DATA_ANALYZER = num_gpus_facet_avg_norm_latency_vs_output_length_variance
+# DATA_ANALYZER = rps_num_gpus_facet_avg_norm_latency_vs_output_length_variance
 
 
 # CACHE: For showing that length distributions adversely affect Preble. All schedulers.
-# WARN: Currently running
+# NOTE: Run. Best plot. Saved.
 # PLOT: The facet is the number of GPUs. The x-axis is the the variance of the distribution and the y-axis is the average normalized latency.
-# NUM_WORKLOADS_OPTIONS = [10]
-# NUM_IN_CONTEXT_EXAMPLES_OPTIONS = [4]
-# OUTPUT_LENGTH_DISTRIBUTION_OPTIONS = [
-#     [(1.0, 150)],
-#     [(1 / 3, 1), (1 / 3, 150), (1 / 3, 300)],
-#     [(0.5, 1), (0.5, 300)],
-# ]
-# NUM_GPUS_OPTIONS = [2**3, 2**4]
-# REQUESTS_PER_SECOND_OPTIONS = [2**5, 2**6]
-# CREATE_ROUTER_OPTIONS = [
-#     RANDOM_SCHEDULER,
-#     ROUND_ROBIN_SCHEDULER,
-#     LEAST_OUTSTANDING_REQUESTS_SCHEDULER,
-#     PREBLE_SCHEDULER,
-# ]
-# DATA_ANALYZER = num_gpus_facet_avg_norm_latency_vs_output_length_variance
+NUM_WORKLOADS_OPTIONS = [10]
+NUM_IN_CONTEXT_EXAMPLES_OPTIONS = [4]
+OUTPUT_LENGTH_DISTRIBUTION_OPTIONS = [
+    [(1.0, 150)],
+    [(1 / 3, 1), (1 / 3, 150), (1 / 3, 300)],
+    [(0.5, 1), (0.5, 300)],
+]
+NUM_GPUS_OPTIONS = [2**3, 2**4]
+REQUESTS_PER_SECOND_OPTIONS = [2**5, 2**6]
+CREATE_ROUTER_OPTIONS = [
+    RANDOM_SCHEDULER,
+    ROUND_ROBIN_SCHEDULER,
+    LEAST_OUTSTANDING_REQUESTS_SCHEDULER,
+    PREBLE_SCHEDULER,
+]
+DATA_ANALYZER = rps_num_gpus_facet_avg_norm_latency_vs_output_length_variance
 
 # ==================== Beginning of Simulation Code ====================
 
