@@ -4,7 +4,7 @@ import threading
 import time
 from collections import defaultdict, deque
 from datetime import datetime, timedelta
-from typing import Dict, List, Tuple, cast
+from typing import Dict, List, Tuple
 
 import numpy as np
 from transformers import AutoTokenizer
@@ -14,9 +14,8 @@ from preble.benchmarks.benchmark_utils import RequestFuncOutput
 from preble.benchmarks.exp_configs.model_equations import (
     LP_mistral_7b_A6000_sglang_extend_flashinfer as prefill_time,
 )
+from preble.global_lru_cache import LPRadixCache, TreeNode
 from preble.ttft_overload_detector import TTFTWindowedOverloadedDetector
-
-from empanada.scheduler.global_lru_cache import LPRadixCache, TreeNode
 
 tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-v0.1")
 
@@ -189,11 +188,8 @@ class SlidingWindowHistogram:
     def get_node_cost(self, node: TreeNode, gpu, tpot):
         prefill_cost = self.get_prefill_cost(node)
         output_len = self.decoding_size[node]
-        # if node.decode_length:
-        #     output_len = np.median(node.decode_length)
-        # NOTE: Added oracle length
-        if node.true_output_length is not None:
-            output_len = node.true_output_length
+        if node.decode_length:
+            output_len = np.median(node.decode_length)
         active_requests = node.ref_counter[gpu]
         decode_cost = active_requests * output_len * tpot
         return prefill_cost + decode_cost
@@ -376,19 +372,14 @@ class EmpanadaScheduler:
         decoding_length = sampling_params.get(
             "max_new_tokens", sampling_params.get("max_tokens", 45)
         )
-        true_output_length = sampling_params.get(
-            "true_output_length", decoding_length
-        )  # NOTE: Addded oracle length parameter
-
+        # print("=======================")
+        # print("BEING USED!!!!!!!!!")
+        # print("=======================")
         # Tokenize the text
         start_time = time.time()
         with self.lock:
             split_nodes = {}
             leaf_node = self.cache.insert(tuple(input_ids), split_nodes=split_nodes)
-            # NOTE: Added oracle length parameter
-            leaf_node.true_output_length = (
-                true_output_length  # TODO: Improve the way in which this is stored
-            )
             self.handle_split_nodes_gpu_allocations(
                 split_nodes, self.gpu_allocations
             )  # copies split node gpu allocation
@@ -457,30 +448,22 @@ class EmpanadaScheduler:
         with self.lock:
             runtime_id = func_output.runtime_selected
             self.update_overload_detector(input_ids, runtime_id, func_output)
-            # NOTE: Added oracle length parameter
-            leaf_node = self.cache.find_node(
-                input_ids
-            )  # TODO: Maybe use a map to store the length info instead of tree
-            important_node = self.get_important_node(cast(TreeNode, leaf_node))
+            important_node = self.get_important_node(self.cache.find_node(input_ids))
             # if func_output.output_len != 1:
             #     important_node.decode_length.append(func_output.output_len)
             self.cache.remove_completed_input_ids(input_ids, runtime_id)
             if func_output.tpot != 0 and func_output.output_len != 1:
                 self.avg_topt_per_gpu[runtime_id].append(func_output.tpot)
 
-            # true_output_length = (
-            #     leaf_node.true_output_length
-            # )  # NOTE: Retrieve from the cache the true output length of the request
-
-            self.histogram.current_decode_lengths_per_gpu[runtime_id] -= int(
-                func_output.output_len  # TODO: Check that this is okay
-            )
+            self.histogram.current_decode_lengths_per_gpu[
+                runtime_id
+            ] -= func_output.max_new_tokens
             if important_node not in self.histogram.histogram:
                 breakpoint()
             assert important_node in self.histogram.histogram
-            self.histogram.per_node_total_decode_lengths[important_node] -= int(
-                func_output.output_len  # TODO: Check that this is okay
-            )
+            self.histogram.per_node_total_decode_lengths[
+                important_node
+            ] -= func_output.max_new_tokens
 
     def handle_important_node_stealing(self, scheduled_idx):
         if sum(self.per_gpu_load.values()) < 50 * self.num_gpus:

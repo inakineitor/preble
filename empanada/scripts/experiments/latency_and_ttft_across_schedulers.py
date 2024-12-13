@@ -31,6 +31,7 @@ from empanada.scheduler.empanada_scheduler import EmpanadaScheduler
 from empanada.scripts.experiments.utils.plotting import (
     num_gpus_facet_avg_norm_latency_vs_rps,
     num_gpus_facet_overhead_vs_rps,
+    output_length_distribution_num_gpus_facet_avg_norm_latency_vs_rps,
     rps_num_gpus_facet_avg_norm_latency_vs_num_workloads,
     rps_num_gpus_facet_avg_norm_latency_vs_output_length_variance,
     rps_facet_avg_norm_latency_vs_num_gpus,
@@ -100,6 +101,58 @@ EMPANADA_SCHEDULER = (
 
 # ==================== Caches ====================
 
+# CACHE: Compare Preble against Empanada
+# FIX: Remaining to run
+NUM_WORKLOADS_OPTIONS = [10]
+NUM_IN_CONTEXT_EXAMPLES_OPTIONS = [4]
+OUTPUT_LENGTH_DISTRIBUTION_OPTIONS = [
+    [(0.5, 1), (0.5, 300)],
+    [(1 / 3, 1), (1 / 3, 150), (1 / 3, 300)],
+    [(1.0, 150)],
+]
+NUM_GPUS_OPTIONS = [2**3, 2**4]
+REQUESTS_PER_SECOND_OPTIONS = [
+    # 2**0,
+    # 2**1,
+    # 2**2,
+    # 2**3,
+    # 2**4,
+    2**5,
+    2**6,
+    2**7,
+    2**8,
+]
+CREATE_ROUTER_OPTIONS = [
+    PREBLE_SCHEDULER,
+    EMPANADA_SCHEDULER,
+]
+DATA_ANALYZER = output_length_distribution_num_gpus_facet_avg_norm_latency_vs_rps
+
+# CACHE: Compare Preble against Empanada
+# FIX: Remaining to run
+# NUM_WORKLOADS_OPTIONS = [10]
+# NUM_IN_CONTEXT_EXAMPLES_OPTIONS = [4]
+# OUTPUT_LENGTH_DISTRIBUTION_OPTIONS = [
+#     [(0.5, 1), (0.5, 300)],
+#     # [(1.0, 150)],
+# ]
+# NUM_GPUS_OPTIONS = [2**3]
+# REQUESTS_PER_SECOND_OPTIONS = [
+#     # 2**0,
+#     # 2**1,
+#     # 2**2,
+#     # 2**3,
+#     # 2**4,
+#     # 2**5,
+#     2**6,
+#     2**7,
+# ]
+# CREATE_ROUTER_OPTIONS = [
+#     PREBLE_SCHEDULER,
+#     EMPANADA_SCHEDULER,
+# ]
+# DATA_ANALYZER = num_gpus_facet_avg_norm_latency_vs_rps
+
 # CACHE: Works for finding the best performing naive method to later compare. This is for findind X
 # NOTE: Run.
 # NUM_WORKLOADS_OPTIONS = [10]
@@ -166,22 +219,22 @@ EMPANADA_SCHEDULER = (
 # CACHE: For showing that length distributions adversely affect Preble. All schedulers.
 # NOTE: Run. Best plot. Saved.
 # PLOT: The facet is the number of GPUs. The x-axis is the the variance of the distribution and the y-axis is the average normalized latency.
-NUM_WORKLOADS_OPTIONS = [10]
-NUM_IN_CONTEXT_EXAMPLES_OPTIONS = [4]
-OUTPUT_LENGTH_DISTRIBUTION_OPTIONS = [
-    [(1.0, 150)],
-    [(1 / 3, 1), (1 / 3, 150), (1 / 3, 300)],
-    [(0.5, 1), (0.5, 300)],
-]
-NUM_GPUS_OPTIONS = [2**3, 2**4]
-REQUESTS_PER_SECOND_OPTIONS = [2**5, 2**6]
-CREATE_ROUTER_OPTIONS = [
-    RANDOM_SCHEDULER,
-    ROUND_ROBIN_SCHEDULER,
-    LEAST_OUTSTANDING_REQUESTS_SCHEDULER,
-    PREBLE_SCHEDULER,
-]
-DATA_ANALYZER = rps_num_gpus_facet_avg_norm_latency_vs_output_length_variance
+# NUM_WORKLOADS_OPTIONS = [10]
+# NUM_IN_CONTEXT_EXAMPLES_OPTIONS = [4]
+# OUTPUT_LENGTH_DISTRIBUTION_OPTIONS = [
+#     [(1.0, 150)],
+#     [(1 / 3, 1), (1 / 3, 150), (1 / 3, 300)],
+#     [(0.5, 1), (0.5, 300)],
+# ]
+# NUM_GPUS_OPTIONS = [2**3, 2**4]
+# REQUESTS_PER_SECOND_OPTIONS = [2**5, 2**6]
+# CREATE_ROUTER_OPTIONS = [
+#     RANDOM_SCHEDULER,
+#     ROUND_ROBIN_SCHEDULER,
+#     LEAST_OUTSTANDING_REQUESTS_SCHEDULER,
+#     PREBLE_SCHEDULER,
+# ]
+# DATA_ANALYZER = rps_num_gpus_facet_avg_norm_latency_vs_output_length_variance
 
 # ==================== Beginning of Simulation Code ====================
 
@@ -195,6 +248,7 @@ DATA_ANALYZER = rps_num_gpus_facet_avg_norm_latency_vs_output_length_variance
 #         (0.5, 300),
 #     ],
 # ]
+MAX_NEW_TOKENS_DISTRIBUTION = [(1.0, 300)]
 
 # ==================== Accelerator Parameters ====================
 # NUM_GPUS_OPTIONS = [
@@ -237,6 +291,7 @@ def create_variable_length_data_loader(
     num_requests: int,
     num_in_context_examples: int,
     output_length_distribution: list[tuple[float, int]],
+    max_new_tokens_distribution: list[tuple[float, int]],
     tokenizer: Any,
 ) -> DataLoader:
     return HighVarianceWorkloadPrefixDataLoader(
@@ -245,6 +300,7 @@ def create_variable_length_data_loader(
         tokenizer,
         num_in_context_examples=num_in_context_examples,
         output_length_distribution=output_length_distribution,
+        max_new_tokens_distribution=max_new_tokens_distribution,
     )
 
 
@@ -256,6 +312,7 @@ def create_subexperiment(
     num_workloads: int,
     num_in_context_examples: int,
     output_length_distribution: list[tuple[float, int]],
+    max_new_tokens_distribution: list[tuple[float, int]],
 ):
     simulator_parameters = SimulatorParameters(
         accelerator_parameters=AcceleratorParameters(
@@ -270,6 +327,7 @@ def create_subexperiment(
         num_workloads=num_workloads,
         num_in_context_examples=num_in_context_examples,
         output_length_distribution=output_length_distribution,
+        max_new_tokens_distribution=max_new_tokens_distribution,
         experiment_time_seconds=EXPERIMENT_TIME_SECONDS,
         model_name=MODEL_NAME,
     )
@@ -299,6 +357,7 @@ experiments = [
                 num_workloads,
                 num_in_context_examples,
                 output_length_distribution,
+                MAX_NEW_TOKENS_DISTRIBUTION,
             )
             for num_gpus in NUM_GPUS_OPTIONS
             for router_name, create_router in CREATE_ROUTER_OPTIONS

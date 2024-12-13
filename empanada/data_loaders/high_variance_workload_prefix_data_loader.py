@@ -36,6 +36,7 @@ class HighVarianceWorkloadPrefixDataLoader(DataLoader):
         output_length_distribution: list[tuple[float, int]] = [
             (1.0, 1)
         ],  # List of (probablity, output length)
+        max_new_tokens_distribution: list[tuple[float, int]] = [(1.0, 1)],
         num_in_context_examples: int = 4,
         random_workload_path=None,
         workload_start_from: int = 0,
@@ -50,6 +51,8 @@ class HighVarianceWorkloadPrefixDataLoader(DataLoader):
         self.distribution_of_non_shared = distribution_of_non_shared
         # self.output_len = output_len
         self.output_length_distribution = output_length_distribution
+        # TODO: Confirm that the `max_new_tokens_distribution` in line with the `output_length_distribution`
+        self.max_new_tokens_distribution = max_new_tokens_distribution
         self.num_in_context_examples = num_in_context_examples
         self.random_workload_path = random_workload_path
         self.workload_start_from = workload_start_from
@@ -66,11 +69,22 @@ class HighVarianceWorkloadPrefixDataLoader(DataLoader):
         workload = []
 
         def get_sampling_params():
-            output_length = sample_from_distribution(self.output_length_distribution)
+            true_output_length = 2
+            max_new_tokens = 1
+            while max_new_tokens <= true_output_length:
+                # TODO: Make this more efficient through sorting and conditioning
+                true_output_length = sample_from_distribution(
+                    self.output_length_distribution
+                )
+                max_new_tokens = sample_from_distribution(
+                    self.max_new_tokens_distribution
+                )
+
             return {
                 "experiment_id": f"random_experiment_{self.num_patterns}_{self.distribution_of_non_shared}_{self.total_num_requests}",
                 "temperature": 0,
-                "max_new_tokens": output_length,
+                "true_output_length": true_output_length,
+                "max_new_tokens": max_new_tokens,
                 "ignore_eos": True,  # For better micro-benchmark
             }
 

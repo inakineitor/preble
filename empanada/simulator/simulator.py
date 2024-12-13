@@ -122,7 +122,8 @@ class SimulatorParameters:
         field(hash=False)
     )  # (num_gpus: int) -> DataParallelRequestRouter
     create_data_loader: Callable[
-        [int, int, int, list[tuple[float, int]], Any], DataLoader
+        [int, int, int, list[tuple[float, int]], list[tuple[float, int]], Any],
+        DataLoader,
     ] = field(hash=False)
     # (
     #   num_workloads: int,
@@ -135,6 +136,7 @@ class SimulatorParameters:
     num_workloads: int
     num_in_context_examples: int
     output_length_distribution: list[tuple[float, int]] = field(hash=False)
+    max_new_tokens_distribution: list[tuple[float, int]] = field(hash=False)
     experiment_time_seconds: int
     model_name: str
 
@@ -147,6 +149,7 @@ class SimulatorParameters:
                 self.num_in_context_examples,
                 self.experiment_time_seconds,
                 tuple(self.output_length_distribution),
+                tuple(self.max_new_tokens_distribution),
                 int.from_bytes(
                     hashlib.sha256(self.model_name.encode("utf-8")).digest(),
                     "big",  # strings in python get salted by default hash so we must use stable cryptographic hash
@@ -213,6 +216,7 @@ def run_simulator(simulator_parameters: SimulatorParameters) -> SimulatorOutput:
         num_requests,
         simulator_parameters.num_in_context_examples,
         simulator_parameters.output_length_distribution,
+        simulator_parameters.max_new_tokens_distribution,
         tokenizer,
     )
     requests = dataloader.generate_workload()

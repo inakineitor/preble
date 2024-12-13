@@ -1,3 +1,5 @@
+"""Modify max time"""
+
 from typing import Dict
 import json
 import heapq
@@ -73,6 +75,7 @@ class Simulation:
             "text": prompt,
             "sampling_params": {
                 "temperature": 0,
+                "true_output_length": 16,
                 "max_new_tokens": 16,
             },
             "input_ids": [0] * 9,

@@ -398,6 +398,7 @@ class GlobalSchedulerWithTimePerf:
         print("=======================")
         print("BEING USED!!!!!!!!!")
         print("=======================")
+        # TODO: [MARKMARK] They use `max_new_tokens` here
         decoding_length = sampling_params.get(
             "max_new_tokens", sampling_params.get("max_tokens", 45)
         )

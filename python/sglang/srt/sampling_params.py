@@ -20,6 +20,7 @@ class SamplingParams:
         spaces_between_special_tokens: bool = True,
         dtype: Optional[str] = None,
         regex: Optional[str] = None,
+        true_output_length: int = 16,
     ) -> None:
         self.temperature = temperature
         self.top_p = top_p
@@ -33,6 +34,7 @@ class SamplingParams:
         self.spaces_between_special_tokens = spaces_between_special_tokens
         self.dtype = dtype
         self.regex = regex
+        self.true_output_length = true_output_length
 
         # Process some special cases
         if self.temperature < _SAMPLING_EPS:
@@ -66,6 +68,10 @@ class SamplingParams:
         if self.max_new_tokens < 0:
             raise ValueError(
                 f"max_new_tokens must be at least 0, got {self.max_new_tokens}."
+            )
+        if self.true_output_length < 0:
+            raise ValueError(
+                f"true_output_length must be at least 0, got {self.true_output_length}."
             )
 
     def normalize(self, tokenizer):

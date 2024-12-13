@@ -500,3 +500,110 @@ def rps_num_gpus_facet_avg_norm_latency_vs_num_workloads(
     # Show the plots
     plt.savefig("rps-num-gpus-facet-avg-norm-latency-vs-num-workloads.pdf")
     plt.show()
+
+
+def output_length_distribution_num_gpus_facet_avg_norm_latency_vs_rps(
+    subexperiment_outputs: list[
+        tuple[
+            SubexperimentParams,
+            list[SimulatorOutput],
+        ],
+    ],
+):
+    facets = [
+        (facet_id, list(group))
+        for (facet_id, group) in unsorted_groupby(
+            subexperiment_outputs,
+            lambda output: (
+                output[0]["output_length_distribution"],
+                output[0]["num_gpus"],
+            ),
+        )
+    ]  # Manual conversion to list is required because list() conversion consumes grouper and they appear empty later on
+
+    vertically_grouped_facets = [
+        (facet_id, list(group))
+        for (facet_id, group) in unsorted_groupby(facets, lambda facet: facet[0][0])
+    ]  # Manual conversion to list is required because list() conversion consumes grouper and they appear empty later on
+
+    num_vertical_facets = len(vertically_grouped_facets)
+    num_horizontal_facets = (
+        len(vertically_grouped_facets[0][1]) if num_vertical_facets >= 1 else 0
+    )
+
+    # Create a figure and three axes
+    _, axes = plt.subplots(
+        num_vertical_facets, num_horizontal_facets, figsize=(12, 12), squeeze=False
+    )
+
+    for vertical_axes_idx, (_, horizontal_facets) in enumerate(
+        vertically_grouped_facets
+    ):
+        for horizontal_axes_idx, (
+            (output_length_distribution, num_gpus),
+            outputs,
+        ) in enumerate(horizontal_facets):
+            ax = axes[vertical_axes_idx][horizontal_axes_idx]
+            ax.set_title(
+                f"{num_gpus} GPUs with output length distribution {output_length_distribution}"
+            )
+            ax.set_xlabel("Requests per Second")
+            ax.set_ylabel("Average Normalized Latency")
+            ax.grid(True)
+            plots = []
+            for router_name, router_outputs in unsorted_groupby(
+                outputs, lambda output: output[0]["router_name"]
+            ):
+                rps_list = []
+                avg_norm_latency_upper_list = []
+                avg_norm_latency_mean_list = []
+                avg_norm_latency_lower_list = []
+                for parameters, simulator_outputs in sorted(
+                    router_outputs, key=lambda o: o[0]["requests_per_second"]
+                ):
+                    rps = parameters["requests_per_second"]
+                    rps_list.append(rps)
+
+                    avg_norm_latencies = [
+                        o.benchmark_metrics.avg_norm_latency for o in simulator_outputs
+                    ]
+                    avg_norm_latency_mean_list.append(np.mean(avg_norm_latencies))
+                    avg_norm_latency_lower_list.append(
+                        np.percentile(
+                            avg_norm_latencies, 16
+                        )  # Assuming normal dist. one std deviation below mean
+                    )
+                    avg_norm_latency_upper_list.append(
+                        np.percentile(
+                            avg_norm_latencies, 84
+                        )  # Assuming normal dist. one std deviation above mean
+                    )
+
+                line_plot = ax.plot(
+                    rps_list,
+                    avg_norm_latency_mean_list,
+                    label=router_name,
+                    linestyle="--",
+                    marker="o",
+                )
+                fill_between_plot = ax.fill_between(
+                    rps_list,
+                    avg_norm_latency_lower_list,
+                    avg_norm_latency_upper_list,
+                    alpha=0.5,
+                    label=router_name,
+                )
+                plots.append((line_plot, fill_between_plot))
+
+            ax.legend(
+                handles=[(p[0][0], p[1]) for p in plots],
+                labels=[plot[0].get_label() for (plot, _) in plots],
+                handleheight=2,
+            )
+
+    # Adjust layout to prevent overlap
+    plt.tight_layout()
+
+    # Show the plots
+    plt.savefig("output-length-distribution-num-gpus-facet-avg-norm-latency-vs-rps.pdf")
+    plt.show()
